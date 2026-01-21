@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allowBash": true,
+    "allowFileSystemRead": true,
+    "allowFileSystemWrite": true,
+    "allowNetworkAccess": true
+  },
+  "agent": {
+    "autoApprove": true
+  }
+}
