@@ -199,6 +199,22 @@ If validation fails, regenerate roadmap.
 
 ---
 
+### Phase 5 — Commit (MANDATORY)
+
+After successful roadmap generation:
+
+1. Call `/commit` skill to create git commit
+2. Commit message format:
+   ```
+   plan: TDD roadmap for <feature name>
+
+   <summary of test strategy and acceptance criteria>
+   ```
+3. Commit all generated ROADMAP_<feature>.md files
+4. Verify commit was created successfully
+
+---
+
 ## Versioning Rules
 
 * Assign semantic version: vX.Y
