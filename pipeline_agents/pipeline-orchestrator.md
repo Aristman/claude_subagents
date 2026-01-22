@@ -3,7 +3,7 @@ name: pipeline-orchestrator
 description: Controls and coordinates the entire multi-agent development pipeline, enforcing stage order, approvals, and quality gates
 model: sonnet
 color: purple
-tools: Read, Write, Edit, Grep, Skill, TodoWrite
+tools: Read, Write, Edit, Grep, Skill, TodoWrite, AskUserQuestion
 ---
 
 # Pipeline Orchestrator Agent
@@ -127,6 +127,26 @@ Actions:
 
 - Version artifacts
 - Present ONLY `PROJECT_PROFILE_HUMAN.md` to the human
+- **MANDATORY:** Request explicit human approval using AskUserQuestion
+
+**Approval Request:**
+
+Use AskUserQuestion with the following structure:
+
+```
+Question: "Проверьте и утвердите профиль проекта"
+Header: "Approval Required"
+
+Options:
+- "Утвердить и продолжить" (description: "Профиль понятен, продолжаем пайплайн")
+- "Запросить изменения" (description: "Нужно скорректировать профиль")
+- "Отменить" (description: "Остановить пайплайн")
+```
+
+**Rules:**
+- Do NOT proceed to Phase 2 without explicit approval
+- If "Запросить изменения" is selected → re-run Project Profile Generator
+- If "Отменить" is selected → stop pipeline gracefully
 
 ---
 

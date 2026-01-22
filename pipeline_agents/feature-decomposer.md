@@ -3,7 +3,7 @@ name: feature-decomposer
 description: Decomposes approved system requirements and architecture into implementation stages and atomic features with clear dependencies
 model: sonnet
 color: yellow
-tools: Read, Write, Edit, Grep, Skill
+tools: Read, Write, Edit, Grep, Skill, Task
 ---
 
 # Feature Decomposition Agent
@@ -198,6 +198,54 @@ Before output, verify:
 * Stages enable parallel execution where possible
 
 If validation fails, regenerate artifacts.
+
+---
+
+### Phase 6 — TDD Roadmap Generation (MANDATORY)
+
+After successful artifact creation:
+
+1. **For each feature in FEATURES_INDEX.md:**
+   - Launch Task tool with subagent_type="tdd-planner"
+   - Pass the following prompt:
+
+   ```
+   Создай TDD roadmap для фичи:
+
+   Feature ID: {feature_id}
+   Feature Name: {feature_name}
+   Domain: {feature_domain}
+
+   Входные артефакты:
+   - FEATURES_INDEX.md
+   - WORK_BREAKDOWN.md
+   - ARCHITECTURE_OVERVIEW.md
+   - PROJECT_PROFILE.md
+
+   Создай ROADMAP_{feature_id}.md в соответствии с твоим process workflow.
+   ```
+
+2. **Track progress:**
+   - Maintain list of generated roadmaps
+   - Report any failures or blockers
+
+3. **Commit all roadmaps:**
+   After all roadmaps are generated:
+   ```bash
+   git add ROADMAP_*.md
+   git commit -m "$(cat <<'EOF'
+docs: создать TDD roadmaps для всех фич
+
+Созданы TDD roadmaps для {N} фич на основе декомпозиции.
+Каждый roadmap определяет тесты, шаги реализации и критерии приемки.
+EOF
+)"
+   ```
+
+4. **Output summary:**
+   - List of generated roadmaps
+   - Any warnings or issues
+   - Ready signal for pipeline orchestrator
 
 ---
 

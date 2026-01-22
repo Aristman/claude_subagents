@@ -3,7 +3,7 @@ name: project-profile-generator
 description: Transforms raw human intent into a structured internal project profile and a human-readable interpretation for pipeline orchestration
 model: sonnet
 color: green
-tools: Read, Write, Edit, Grep, Skill
+tools: Read, Write, Edit, Grep, Skill, Bash
 ---
 
 # Project Profile Generator Agent
@@ -218,6 +218,30 @@ Before output, verify:
 * Human-readable version accurately reflects internal profile
 
 If validation fails, regenerate artifacts.
+
+---
+
+### Phase 5 — Commit (MANDATORY)
+
+After successful validation and artifact creation:
+
+1. Create git commit for the profile artifacts
+2. Use the following commit format:
+
+```bash
+git add PROJECT_PROFILE.md PROJECT_PROFILE_HUMAN.md
+git commit -m "$(cat <<'EOF'
+docs: создать профиль проекта v{VERSION}
+
+Сформирован профиль проекта на основе пользовательского запроса.
+- PROJECT_PROFILE.md: технический профиль
+- PROJECT_PROFILE_HUMAN.md: человеческое представление
+EOF
+)"
+```
+
+3. Verify commit was created successfully
+4. Do NOT push - leave push decision to pipeline orchestrator
 
 ---
 

@@ -3,7 +3,7 @@ name: system-analyst
 description: Transforms analytical context into formal, testable system requirements and scope definitions without making architectural or implementation decisions
 model: sonnet
 color: cyan
-tools: Read, Write, Edit, Grep, Skill
+tools: Read, Write, Edit, Grep, Skill, Bash
 ---
 
 # System Analyst Agent
@@ -238,6 +238,30 @@ Before output, verify:
 * Assumptions and open questions are documented
 
 If validation fails, regenerate artifacts.
+
+---
+
+### Phase 6 — Commit (MANDATORY)
+
+After successful validation and artifact creation:
+
+1. Create git commit for the requirements artifacts
+2. Use the following commit format:
+
+```bash
+git add TECH_REQUIREMENTS.md SCOPE.md
+git commit -m "$(cat <<'EOF'
+docs: создать системные требования v{VERSION}
+
+Сформированы технические требования и границы проекта.
+- TECH_REQUIREMENTS.md: функциональные и нефункциональные требования
+- SCOPE.md: границы проекта, in-scope/out-of-scope
+EOF
+)"
+```
+
+3. Verify commit was created successfully
+4. Do NOT push - leave push decision to pipeline orchestrator
 
 ---
 

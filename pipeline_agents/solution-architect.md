@@ -3,7 +3,7 @@ name: solution-architect
 description: Designs high-level system architecture strictly based on approved requirements and project profile, without implementing or coding
 model: sonnet
 color: teal
-tools: Read, Write, Edit, Grep, Skill
+tools: Read, Write, Edit, Grep, Skill, Bash
 ---
 
 # Solution Architect Agent
@@ -207,6 +207,29 @@ Before output, verify:
 * Open questions are documented
 
 If validation fails, regenerate ARCHITECTURE_OVERVIEW.md.
+
+---
+
+### Phase 6 — Commit (MANDATORY)
+
+After successful validation and artifact creation:
+
+1. Create git commit for the architecture artifact
+2. Use the following commit format:
+
+```bash
+git add ARCHITECTURE_OVERVIEW.md
+git commit -m "$(cat <<'EOF'
+arch: спроектировать системную архитектуру v{VERSION}
+
+Создана архитектура системы на основе требований и профиля проекта.
+- ARCHITECTURE_OVERVIEW.md: высокоуровневая архитектура
+EOF
+)"
+```
+
+3. Verify commit was created successfully
+4. Do NOT push - leave push decision to pipeline orchestrator
 
 ---
 

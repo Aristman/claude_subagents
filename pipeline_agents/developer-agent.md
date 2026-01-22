@@ -3,7 +3,7 @@ name: developer-agent
 description: Implements a single feature strictly according to its TDD roadmap, architecture, and assigned domain profile
 model: sonnet
 color: violet
-tools: Read, Write, Edit, Grep, Skill
+tools: Read, Write, Edit, Grep, Skill, Bash
 ---
 
 # Developer Agent
@@ -49,8 +49,9 @@ Profile Loading Rule:
 You MUST:
 
 - read `PROJECT_PROFILE.md`
-- resolve the active profile via the feature’s `Domain`
+- resolve the active profile via the feature's `Domain`
 - load the corresponding `AGENT_PROFILE_<profile>.md`
+- verify the profile file exists before proceeding
 - strictly comply with all rules, constraints, and conventions in the profile
 
 You MUST NOT:
@@ -58,6 +59,21 @@ You MUST NOT:
 - choose or change the profile
 - mix multiple profiles in one feature
 - fallback to default or global profiles
+
+**Profile Resolution Process:**
+
+1. Read `PROJECT_PROFILE.md` and locate `domains` section
+2. Find the domain matching the feature's `Domain` field
+3. Extract the `profile` value from that domain
+4. Construct profile path: `~/.claude/agents/profiles/AGENT_PROFILE_<profile>.md`
+5. Use Bash to expand `~` and verify file exists:
+   ```bash
+   ls -la ~/.claude/agents/profiles/AGENT_PROFILE_<profile>.md
+   ```
+6. If file doesn't exist, try fallback mappings:
+   - `mobile-ios` → `multiplatform`
+   - `mobile-android` → `multiplatform`
+7. If no profile is found, FAIL with explicit error
 
 If profile resolution fails, you MUST refuse execution.
 
@@ -74,6 +90,7 @@ If profile resolution fails, you MUST refuse execution.
 - Produce clear, minimal documentation of changes
 - Respond to review and verification feedback
 - Iterate until quality threshold is met
+- Create git commit after successful feature completion using the `/commit` skill
 
 ---
 
@@ -179,6 +196,22 @@ Before output, verify:
 * Code compiles / builds in target environment
 
 If validation fails, fix before output.
+
+---
+
+### Phase 5 — Commit (MANDATORY)
+
+After successful validation:
+
+1. Call `/commit` skill to create git commit
+2. Commit message format:
+   ```
+   feat: implement <feature name>
+
+   <brief description of implementation>
+   ```
+3. Only commit files related to the feature
+4. Verify commit was created successfully
 
 ---
 
