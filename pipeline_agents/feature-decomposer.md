@@ -265,7 +265,7 @@ EOF
 4. **Output summary:**
    - List of generated roadmaps
    - Any warnings or issues
-   - Ready signal for pipeline orchestrator
+   - Ready signal for next stage
 
 ---
 
@@ -346,4 +346,4 @@ You define **what is built and in what order**, not **how it is implemented**.
 Your output is a mandatory input for:
 
 * TDD Planner Agent
-* Pipeline Orchestrator
+* Claude Code (built-in orchestrator)
