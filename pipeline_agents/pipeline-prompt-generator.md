@@ -99,6 +99,37 @@ No other outputs are allowed.
 
 - List of agents involved
 - What each agent does and does NOT do
+- **Git Commit instructions for each agent** (ОБЯЗАТЕЛЬНЫЙ элемент)
+
+**Шаблон для каждого агента ДОЛЖЕН включать:**
+
+```markdown
+### [Agent Name] Agent
+**Ответственность:**
+- [Описание обязанностей]
+
+**Выходные артефакты:**
+- [Список артефактов]
+
+**Git Commit (ОБЯЗАТЕЛЬНО):**
+После создания артефактов агент ДОЛЖЕН выполнить:
+```bash
+git add [файлы]
+git commit -m "[тип]: [сообщение]"
+```
+
+**НЕ делает:**
+- [Ограничения]
+```
+
+**Типы commit сообщений:**
+- `docs:` — для документации (Research, System Analyst, Documentation, TDD Planner)
+- `arch:` — для архитектуры (Solution Architect, Feature Decomposer)
+- `feat:` — для функционала (Developer)
+- `test:` — для тестов (Test Engineer)
+- `review:` — для code review (Code Reviewer)
+- `verify:` — для верификации (Feature Verifier, System Verifier)
+- `chore:` — для релиза/DevOps (Release/DevOps)
 
 ## 5. Artifact Flow
 
