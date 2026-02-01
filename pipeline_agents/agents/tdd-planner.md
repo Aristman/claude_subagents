@@ -61,6 +61,7 @@ You MUST:
 - Align acceptance criteria with system requirements
 - Explicitly consider profile-specific testing needs
 - Ensure roadmap supports parallel development
+- **Analyze and document feature dependencies from FEATURES_INDEX.md**
 - Perform self-validation before output
 
 ---
@@ -109,21 +110,69 @@ Provide a **feature-specific, test-first execution plan** for developer and QA a
 - Feature description
 - Related requirements (FR-IDs)
 - Stage
+- Domain
 
-## 2. Feature Scope
+## 2. Dependencies (ОБЯЗАТЕЛЬНАЯ СЕКЦИЯ)
+
+### 2.1 Feature Dependencies
+
+Список фичей от которых зависит данная фича:
+
+- **F-XXX:** <Feature Name> (blocking/non-blocking)
+- **F-YYY:** <Feature Name> (blocking)
+
+Если зависимостей нет — указать: **None**
+
+### 2.2 External Dependencies
+
+Внешние зависимости (API, библиотеки, сервисы):
+
+- <Название зависимости>: <версия/описание>
+
+Если внешних зависимостей нет — указать: **None**
+
+### 2.3 Development Order
+
+Уровень зависимости для определения порядка разработки:
+
+- **Level N:** — где N = уровень вложенности (0 = нет зависимостей)
+
+Примеры:
+- Level 0: Фича без зависимостей (может разрабатываться первой)
+- Level 1: Зависит от фич Level 0
+- Level 2: Зависит от фич Level 1
+
+## 3. Feature Scope
 
 - In scope
 - Out of scope
 
-## 3. Test Strategy (TDD)
+## 4. Test Strategy (TDD)
 
-### 3.1 Test Types
+### 4.1 Test Types
 
 - Unit tests
 - Integration tests
 - Contract / UI / E2E tests (as applicable per profile)
 
-### 3.2 Test Cases
+### 4.2 Build and Run Verification
+
+⚠️ **ОБЯЗАТЕЛЬНО:** Roadmap ДОЛЖЕН включать проверки:
+
+**Build Verification:**
+- Команда сборки проекта
+- Ожидаемый результат сборки
+- Критерии успешной сборки
+
+**Run Verification:**
+- Команда запуска проекта
+- Ожидаемый результат запуска
+- Базовая проверка работоспособности
+
+**Integration Verification:**
+- Проверка интеграции с зависимыми фичами (если есть)
+
+### 4.3 Test Cases
 
 For each test:
 
@@ -133,27 +182,32 @@ For each test:
 - Expected result
 - Pass / Fail criteria
 
-## 4. Implementation Plan
+## 5. Implementation Plan
 
 - Logical implementation steps
-- Dependencies on other features or components
 - Constraints from architecture
+- Integration points with dependent features
 
-## 5. Acceptance Criteria
+## 6. Acceptance Criteria
 
 - Binary, testable conditions for feature completion
+- Build passes successfully
+- Application runs without critical errors
+- All tests pass
 
-## 6. Quality Expectations
+## 7. Quality Expectations
 
 - Coverage requirements
 - Performance or reliability expectations (if applicable)
+- Build and run stability
 
-## 7. Risks and Edge Cases
+## 8. Risks and Edge Cases
 
 - Known edge cases
 - Risky scenarios
+- Dependency-related risks
 
-## 8. Notes
+## 9. Notes
 
 - Clarifications or planning notes
 ````

@@ -57,6 +57,7 @@ Agent = Role + Profile Awareness + Artifact Contracts
 | Категория | Путь | Реестр |
 |-----------|------|--------|
 | Backend | `~/.claude/agents/profiles/backend/AGENT_PROFILE_*.md` | `backend/BACKEND_PROFILES.md` |
+| Rust | `~/.claude/agents/profiles/rust/AGENT_PROFILE_*.md` | `rust/RUST_PROFILES.md` |
 | Mobile | `~/.claude/agents/profiles/AGENT_PROFILE_mobile-*.md` | (будет добавлен) |
 | Web | `~/.claude/agents/profiles/AGENT_PROFILE_web.md` | (будет добавлен) |
 | CLI | `~/.claude/agents/profiles/AGENT_PROFILE_cli.md` | (будет добавлен) |
@@ -67,6 +68,16 @@ Agent = Role + Profile Awareness + Artifact Contracts
 - `nodejs` — TypeScript + Node.js (Express/Fastify)
 - `python` — Python + Django/FastAPI
 - `rust` — Rust + Actix/Axum
+
+**Доступные Rust профили:**
+- `rust-simcore` — Ядро симуляции (Bevy ECS)
+- `rust-ai-engineer` — AI система (neural networks, genetic algorithm)
+- `rust-gameplay-engineer` — Игровые механики
+- `rust-tauri-backend` — Backend для Tauri приложений
+- `rust-network-engineer` — Сетевой слой
+- `rust-sqlite-storage` — Локальное хранение (SQLite)
+- `rust-api-integration` — Интеграция с внешними API
+- `rust-document-export` — Экспорт документов
 
 ---
 
@@ -463,15 +474,22 @@ Agent = Role + Profile Awareness + Artifact Contracts
 - PIPELINE_PROMPT.md
 - QUALITY_SCORING.md
 - `profiles/backend/BACKEND_PROFILES.md` — реестр backend профилей
-- `profiles/backend/AGENT_PROFILE_*.md` — специализированные профили
+- `profiles/backend/AGENT_PROFILE_*.md` — специализированные backend профили
+- `profiles/rust/RUST_PROFILES.md` — реестр Rust профилей
+- `profiles/rust/AGENT_PROFILE_*.md` — специализированные Rust профили
 
 ---
 
 ## Статус документа
 
 - **Статус:** Production-ready
-- **Версия:** 8.0
+- **Версия:** 9.0
 - **Архитектурный уровень:** system / contract
+- **Изменения v9.0:**
+  - Добавлена категория Rust профилей
+  - Создана папка `rust/` для специализированных Rust профилей
+  - Добавлен реестр `rust/RUST_PROFILES.md`
+  - Добавлены 7 специализированных Rust профилей (AI, GAME, NET, Tauri и др.)
 - **Изменения v8.0:**
   - Добавлен новый раздел "Analysis Agents (standalone)"
   - Добавлен Deep Analysis Agent для комплексного анализа проектов

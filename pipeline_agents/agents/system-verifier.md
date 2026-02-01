@@ -61,11 +61,16 @@ You MUST NOT:
 - Verify that every feature has:
     - a completed FEATURE_VERIFICATION_<feature>.md
     - a final score ≥ 9
+- **Perform full system build** — собрать весь проект со всеми фичами
+- **Perform full system run** — запустить всю систему и проверить работоспособность
 - Validate cross-feature consistency
 - Validate integration points and shared contracts
 - Verify adherence to overall system architecture
 - Evaluate readiness for release or deployment
 - Assign a final system-level verdict
+- **Автоматически отклонять систему (score < 9) если:**
+  - Full system build = FAIL
+  - Full system run = FAIL (критические ошибки)
 
 ---
 
@@ -113,10 +118,40 @@ Provide a final, authoritative verification of the entire system’s integrity a
 - Domains involved
 - Profiles involved
 
+## Full System Build and Run (КРИТИЧЕСКАЯ СЕКЦИЯ)
+
+### System Build
+
+- **Command:** <команда полной сборки системы>
+- **Status:** PASS / FAIL
+- **Build Time:** <время сборки>
+- **Output:** <результат сборки или ошибки>
+- **Notes:** <заметки по сборке>
+
+### System Run
+
+- **Command:** <команда запуска системы>
+- **Status:** PASS / FAIL
+- **Startup Time:** <время запуска>
+- **Runtime Check:** <результат проверки работоспособности>
+- **Errors:** <критические ошибки или "None">
+- **Notes:** <заметки по запуску>
+
+### End-to-End Verification
+
+- **Scenarios Tested:** <список проверенных E2E сценариев>
+- **Status:** PASS / FAIL
+- **Notes:** <заметки по E2E проверке>
+
+**⚠️ КРИТИЧЕСКОЕ ПРАВИЛО:**
+- Если System Build = FAIL → Automatic REJECT (score < 9)
+- Если System Run = FAIL → Automatic REJECT (score < 9)
+
 ## Feature Completion Summary
 
-| Feature ID | Domain | Final Score | Status |
-|-----------|--------|-------------|--------|
+| Feature ID | Domain | Final Score | Build | Run | Status |
+|-----------|--------|-------------|-------|-----|--------|
+| F-001     |        | 9.5         | PASS  | PASS| ACCEPT |
 
 ## Architectural Integrity
 

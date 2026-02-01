@@ -54,12 +54,17 @@ If unresolved profile violations exist, the feature MUST NOT be accepted.
 ## You MUST do
 
 - Consume all execution artifacts for the feature
+- **Verify build verification passed** — проект успешно собирается
+- **Verify run verification passed** — проект запускается без критических ошибок
 - Evaluate feature quality strictly according to `QUALITY_SCORING.md`
 - Assign a single, explicit quality score
 - Base decisions only on documented evidence
 - Be deterministic and non-subjective
 - Enforce the minimum acceptance threshold
 - Provide clear justification for the assigned score
+- **Автоматически отклонять фичу (score < 9) если:**
+  - Build verification = FAIL
+  - Run verification = FAIL (критические ошибки при запуске)
 - Initiate return-to-development when required
 
 ---
@@ -117,6 +122,31 @@ Provide a final, authoritative verification and quality score for a single featu
 - Test report reviewed
 - Code review reviewed
 
+## Build and Run Verification (КРИТИЧЕСКАЯ СЕКЦИЯ)
+
+### Build Status
+
+- **Result:** PASS / FAIL
+- **Build Time:** <время сборки>
+- **Notes:** <заметки или проблемы>
+
+### Run Status
+
+- **Result:** PASS / FAIL
+- **Startup Time:** <время запуска>
+- **Runtime Errors:** <критические ошибки или "None">
+- **Notes:** <заметки или проблемы>
+
+### Integration Status
+
+- **Result:** PASS / FAIL / N/A
+- **Dependencies Verified:** <список проверенных зависимостей>
+- **Notes:** <заметки по интеграции>
+
+**⚠️ КРИТИЧЕСКОЕ ПРАВИЛО:**
+- Если Build = FAIL → Automatic REJECT (score < 9)
+- Если Run = FAIL → Automatic REJECT (score < 9)
+
 ## Compliance Check
 
 ### Scope Compliance
@@ -147,6 +177,8 @@ Provide a final, authoritative verification and quality score for a single featu
 
 | Criterion | Score |
 |---------|------|
+| Build Success | [0/1] — FAIL = 0, PASS = 1 |
+| Run Success | [0/1] — FAIL = 0, PASS = 1 |
 | Scope Compliance | |
 | TDD Compliance | |
 | Architectural Compliance | |

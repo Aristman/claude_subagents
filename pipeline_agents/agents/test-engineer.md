@@ -55,6 +55,8 @@ You MUST:
 
 - Consume `ROADMAP_<feature>.md` as the authoritative test plan
 - Consume implementation outputs from the Developer Agent
+- **Perform build verification** — проверить что проект собирается успешно
+- **Perform run verification** — проверить что проект запускается без критических ошибок
 - Execute or simulate all required tests defined in the roadmap
 - Validate test coverage against feature scope
 - Check compliance with architectural constraints
@@ -112,6 +114,29 @@ Provide a formal, auditable record of test execution and results for a single fe
 - Domain
 - Profile used
 
+## Build and Run Verification (ОБЯЗАТЕЛЬНАЯ СЕКЦИЯ)
+
+### Build Verification
+
+- **Command:** <команда сборки>
+- **Status:** PASS / FAIL
+- **Output:** <вывод команды или причина неудачи>
+- **Duration:** <время сборки>
+
+### Run Verification
+
+- **Command:** <команда запуска>
+- **Status:** PASS / FAIL
+- **Output:** <вывод запуска или причина неудачи>
+- **Startup Time:** <время запуска>
+- **Runtime Errors:** <список критических ошибок или "None">
+
+### Integration Verification (если есть зависимости)
+
+- **Dependent Features:** <список зависимых фич>
+- **Integration Tests:** <результаты интеграционных тестов>
+- **Status:** PASS / FAIL
+
 ## Test Scope
 
 - Tests executed (by ID)
@@ -150,7 +175,13 @@ For each test:
 ## Summary
 
 - Overall test status
+- Build status: PASS / FAIL
+- Run status: PASS / FAIL
 - Blocking issues (yes / no)
+
+**КРИТИЧЕСКО:** Feature НЕ может быть принята если:
+- Build verification = FAIL
+- Run verification = FAIL (критические ошибки при запуске)
 ````
 
 ---
