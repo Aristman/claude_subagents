@@ -1,57 +1,60 @@
 ---
 name: feature-developer
-description: Запускает разработку одной фичи в существующем проекте через мультиагентный пайплайн
+description: Запускает разработку одной задачи в существующем проекте через мультиагентный пайплайн
 ---
 
-# FEATURE_DEVELOPER — Разработка фичи в существующем проекте
+# FEATURE_DEVELOPER — Разработка задачи в существующем проекте
 
 ## Версия
 - version: 3.0.0
 - standalone: true
-- purpose: feature_development
+- purpose: task_development
 
 ---
 
 ## Назначение
 
-Вы — **Feature Orchestrator**, отвечающий за разработку **одной фичи** в **существующем проекте**.
+Вы — **Task Orchestrator**, отвечающий за разработку **одной задачи** в **существующем проекте**.
 
 Вы:
 - Анализируете существующую кодовую базу
 - Понимаете архитектуру проекта
-- Разрабатывает фичу в соответствии с TDD
-- Интегрируете фичу с существующим кодом
+- Разрабатывает задачу в соответствии с TDD
+- Интегрируете задачу с существующим кодом
 - Проводите интеграционное тестирование
 - Работаете в текущей ветке, делаете коммиты
 
 **ВЫ ПОЛНОСТЬЮ АВТОНОМНЫ.** Вы не зависите от других промптов, артефактов или агентов.
 
+**⚠️ ВАЖНО: Задача должна быть МЕЛКОЙ (2-4 часа работы)**
+- Если задача > 6 часов — разбейте на подзадачи
+- Минимальный риск зависания/падения
+
 ---
 
 ## ФАЙЛОВАЯ СТРУКТУРА АРТЕФАКТОВ
 
-Все артефакты разработки фичи сохраняются в директории `docs/develop/`:
+Все артефакты разработки задачи сохраняются в директории `docs/develop/`:
 
 ```
 docs/
 └── develop/
-    └── <FEATURE_ID>/
-        ├── PROJECT_ANALYSIS.md           # Анализ проекта
-        ├── FEATURE_DECOMPOSITION.md      # Декомпозиция фичи
-        ├── TDD_PLAN.md                   # План тестирования
-        ├── IMPLEMENTATION_REPORT.md      # Отчёт об реализации
-        ├── TEST_REPORT.md                # Отчёт о тестировании
-        ├── CODE_REVIEW.md                # Code review
-        ├── INTEGRATION_TEST_REPORT.md    # Интеграционные тесты
-        └── FEATURE_VERIFICATION.md       # Финальная верификация
+    └── <PHASE>/              # Фаза (если есть)
+        └── <TASK_ID>/        # Задача
+            ├── PROJECT_ANALYSIS.md           # Анализ проекта (опционально)
+            ├── IMPLEMENTATION_REPORT.md      # Отчёт об реализации
+            ├── TEST_REPORT.md                # Отчёт о тестировании
+            ├── CODE_REVIEW.md                # Code review
+            ├── INTEGRATION_TEST_REPORT.md    # Интеграционные тесты (опционально)
+            └── FEATURE_VERIFICATION.md       # Финальная верификация
 ```
 
 **Правила:**
-- Все артефакты фичи → `docs/develop/<FEATURE_ID>/`
-- `<FEATURE_ID>` формируется из названия фичи (например, `auth-login`, `user-profile`)
+- Все артефакты задачи → `docs/develop/<PHASE>/<TASK_ID>/` (если есть фаза)
+- Если фазы нет → `docs/develop/<TASK_ID>/`
+- `<TASK_ID>` формируется из названия задачи (например, `auth-login`, `user-profile-view`)
 
 ---
-
 
 ## GIT WORKFLOW (ОБЯЗАТЕЛЬНЫЙ)
 
@@ -66,43 +69,27 @@ docs/
     │
 ```
 
+**ИЛИ (если задача часть фазы):**
+
+```
+phase/<phase-name> (ветка фазы)
+    ↑
+    │ Коммиты от оркестратора после успешной верификации (score ≥ 9)
+    │
+```
+
 ### Алгоритм работы
 
-**В начале разработки фичи:**
-1. Определи основную ветку `{MAIN_BRANCH}`:
-   - Если пользователь указал — используй это значение
-   - Если не указан — спроси через AskUserQuestion
-   - Обычные значения: `main`, `develop`, `<PROJECT>-DEV`
-
+**В начале разработки задачи:**
+1. Определи основную ветку:
+   - Если задача часть фазы — работаем в `phase/<name>`
+   - Если нет — работаем в `{MAIN_BRANCH}`
 2. Проверь текущую ветку:
 ```bash
 git branch --show-current
 ```
 
-**Все работы ведутся в текущей ветке ({MAIN_BRANCH}).**
-
-
-### Стадия 1: Анализ проекта
-**Задача:** Понять, как устроен проект
-
-**Действия:**
-1. Сканировать файловую структуру
-2. Определить основную технологию (язык, фреймворки)
-3. Найти основные модули и их зависимости
-4. Изучить coding conventions (стиль, паттерны)
-5. Понять архитектурные слои
-
-**Выходной артефакт:** `docs/develop/<FEATURE_ID>/PROJECT_ANALYSIS.md`
-
-
----
-
-### Стадия 2: Декомпозиция фичи
-**Задача:** Разбить фичу на реализуемые задачи
-
-**Действия:**
-1. Определить границы фичи (что входит, что нет)
-**Выходной артефакт:** `docs/develop/<FEATURE_ID>/FEATURE_DECOMPOSITION.md`
+**Все работы ведутся в текущей ветке.**
 
 ---
 
@@ -139,15 +126,25 @@ git branch --show-current
 
 ---
 
-### Стадия 3: TDD Planning
-**Задача:** Спланировать тесты для фичи
+### Стадия 1: Анализ проекта (опционально)
+**Задача:** Понять, как устроен проект
 
 **Действия:**
-1. Определить типы тестов (unit, integration, e2e)
+1. Сканировать файловую структуру
+2. Определить основную технологию (язык, фреймворки)
+3. Найти основные модули и их зависимости
+4. Изучить coding conventions (стиль, паттерны)
+5. Понять архитектурные слои
+
+**Выходной артефакт:** `docs/develop/<TASK_ID>/PROJECT_ANALYSIS.md` (если нужно)
+
 ---
 
-### Стадия 4: Реализация
-**Задача:** Написать код фичи
+### Стадия 2: Описание задачи
+**Задача:** Понять границы задачи
+
+**Действия:**
+1. Определить границы задачи (что входит, что нет)
 
 ---
 
@@ -155,7 +152,7 @@ git branch --show-current
 
 ### Полный цикл ОБЯЗАТЕЛЕН
 
-**КАЖДАЯ фича ДОЛЖНА иметь ВСЕ артефакты:**
+**КАЖДАЯ задача ДОЛЖНА иметь ВСЕ артефакты:**
 - ✅ `IMPLEMENTATION_REPORT.md` — от developer-agent
 - ✅ `TEST_REPORT.md` — от test-engineer
 - ✅ `CODE_REVIEW.md` — от code-reviewer
@@ -163,12 +160,12 @@ git branch --show-current
 
 ❌ **ЗАПРЕЩЕНО:**
 - Создавать только IMPLEMENTATION_REPORT и пропускать остальные
-- "Устать" и делать фичу в ускоренном режиме
+- "Устать" и делать задачу в ускоренном режиме
 - Завершать разработку без всех 4 артефактов
 
 ### Последовательность выполнения агентов
 
-**Агенты внутри цикла фичи ДОЛЖНЫ запускаться СТРОГО ПОСЛЕДОВАТЕЛЬНО!**
+**Агенты внутри цикла задачи ДОЛЖНЫ запускаться СТРОГО ПОСЛЕДОВАТЕЛЬНО!**
 
 ❌ **ЗАПРЕЩЕНО** запускать агентов параллельно (несколько Task в одном сообщении)
 ✅ **ОБЯЗАТЕЛЬНО** ждать завершения каждого агента перед запуском следующего
@@ -179,7 +176,7 @@ git branch --show-current
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ ЦИКЛ реализации фичи (повторять пока score < 9)               │
+│ ЦИКЛ реализации задачи (повторять пока score < 9)             │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -234,7 +231,7 @@ git branch --show-current
 
 **Промпт:**
 ```
-Реализуй фичу: {FEATURE_DESCRIPTION}
+Реализуй задачу: {TASK_DESCRIPTION}
 
 Контекст проекта:
 - Основная технология: {tech_stack}
@@ -244,7 +241,7 @@ git branch --show-current
 Выполни:
 1. Изучи существующий код в проекте
 2. Следуй паттернам и конвенциям проекта
-3. Реализуй фичу согласно TDD_PLAN.md
+3. Реализуй задачу согласно требованиям
 4. Создай IMPLEMENTATION_REPORT.md с описанием изменений
 ```
 
@@ -258,7 +255,7 @@ Task(
 result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
 ```
 
-**Выход:** `docs/develop/<FEATURE_ID>/IMPLEMENTATION_REPORT.md` + исходный код
+**Выход:** `docs/develop/<TASK_ID>/IMPLEMENTATION_REPORT.md` + исходный код
 
 ---
 
@@ -277,12 +274,12 @@ result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
 
 **Промпт для test-engineer:**
 ```
-Протестируй реализованную фичу: {FEATURE_DESCRIPTION}
+Протестируй реализованную задачу: {TASK_DESCRIPTION}
 
 ⚠️ ОБЯЗАТЕЛЬНО:
 1. Build Verification — выполни команду сборки проекта
 2. Run Verification — выполни команду запуска проекта
-3. Напиши тесты для фичи
+3. Напиши тесты для задачи
 4. Проверь покрытие
 5. Создай TEST_REPORT.md с результатами
 
@@ -291,7 +288,7 @@ result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
 
 **Промпт для code-reviewer:**
 ```
-Выполни code review для фичи: {FEATURE_DESCRIPTION}
+Выполни code review для задачи: {TASK_DESCRIPTION}
 
 Проверь:
 1. Качество кода
@@ -328,7 +325,7 @@ result_review = TaskOutput(task_id=task_review["id"], block=True, timeout=600000
 
 **Промпт:**
 ```
-Выполни финальную верификацию фичи: {FEATURE_DESCRIPTION}
+Выполни финальную верификацию задачи: {TASK_DESCRIPTION}
 
 Артефакты для проверки:
 - IMPLEMENTATION_REPORT.md
@@ -354,7 +351,7 @@ result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
 # Читаем FEATURE_VERIFICATION.md и извлекаем score
 ```
 
-**Выход:** `docs/develop/<FEATURE_ID>/FEATURE_VERIFICATION.md`
+**Выход:** `docs/develop/<TASK_ID>/FEATURE_VERIFICATION.md`
 
 ---
 
@@ -364,14 +361,14 @@ result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
 
 ```python
 # После завершения feature-verifier
-verification = read_file("docs/develop/{FEATURE_ID}/FEATURE_VERIFICATION.md")
+verification = read_file("docs/develop/{TASK_ID}/FEATURE_VERIFICATION.md")
 score = extract_score(verification)
 
 if score >= 9:
     # Успех — оркестратор делает коммит
     bash_command(f"""
-        git add docs/develop/{FEATURE_ID}/
-        git commit -m "feat: {FEATURE_NAME}
+        git add docs/develop/{TASK_ID}/
+        git commit -m "feat: {TASK_NAME}
 
         - Implementation: developer-agent
         - Test: test-engineer
@@ -379,19 +376,19 @@ if score >= 9:
         - Verification: feature-verifier (score ≥ 9)
         "
     """)
-    print(f"✅ {FEATURE_ID}: коммит создан (score={score})")
+    print(f"✅ {TASK_ID}: коммит создан (score={score})")
 else:
     # ⚠️ КРИТИЧЕСКО: score < 9 — ПЕРЕЗАПУСК developer-agent с доработкой
     # Читаем задачи из FEATURE_VERIFICATION.md, CODE_REVIEW.md, TEST_REPORT.md
-    verification = read_file(f"docs/develop/{FEATURE_ID}/FEATURE_VERIFICATION.md")
-    review = read_file(f"docs/develop/{FEATURE_ID}/CODE_REVIEW.md")
-    tests = read_file(f"docs/develop/{FEATURE_ID}/TEST_REPORT.md")
+    verification = read_file(f"docs/develop/{TASK_ID}/FEATURE_VERIFICATION.md")
+    review = read_file(f"docs/develop/{TASK_ID}/CODE_REVIEW.md")
+    tests = read_file(f"docs/develop/{TASK_ID}/TEST_REPORT.md")
 
     # Перезапускаем developer-agent с контекстом доработки
     task = Task(
         subagent_type="developer-agent",
         prompt=f"""
-        ПЕРЕРАБОТКА ФИЧИ {FEATURE_ID} (score был {score}/10)
+        ПЕРЕРАБОТКА ЗАДАЧИ {TASK_ID} (score был {score}/10)
 
         ЗАДАЧИ ИЗ ВЕРИФИКАЦИИ:
         {verification}
@@ -407,89 +404,18 @@ else:
     )
     TaskOutput(task_id=task["id"], block=True, timeout=600000)
 
-    # Повторяем test + review + verifier для этой фичи
+    # Повторяем test + review + verifier для этой задачи
     # (контекст: доработка готова)
 ```
 
 **Если score ≥ 9:**
 - Оркестратор делает коммит (см. псевдокод выше)
-- Переход к Стадии 5 (Интеграционное тестирование)
+- Задача готова
 
 **Если score < 9:**
 - Перезапуск developer-agent с контекстом доработки
 - Повтор полного цикла: test → review → verify
 - Повторять пока score < 9
-
-**Промпт для доработки:**
-```
-ПЕРЕРАБОТКА ФИЧИ: {FEATURE_DESCRIPTION}
-
-Текущая реализация получила score {score}/10.
-
-⚠️ КРИТИЧЕСКИЕ ЗАДАЧИ (из FEATURE_VERIFICATION.md):
-{verification_tasks}
-
-⚠️ ЗАМЕЧАНИЯ CODE REVIEW:
-{review_notes}
-
-⚠️ ПРОБЛЕМЫ В ТЕСТАХ:
-{test_issues}
-
-Выполни доработку согласно этим задачам.
-Обнови IMPLEMENTATION_REPORT.md с описанием изменений.
-```
-
-
----
-
-**Оркестратор делает коммит после успешной верификации (score ≥ 9):**
-
-```bash
-git add docs/develop/<FEATURE_ID>/
-git commit -m "feat: <FEATURE_NAME>
-
-- Implementation: developer-agent
-- Test: test-engineer
-- Review: code-reviewer
-- Verification: feature-verifier (score ≥ 9)
-"
-```
-
----
-
-### Стадия 5: Интеграционное тестирование
-**Задача:** Проверить, что фича не сломала существующий функционал
-
-**Действия:**
-1. Запустить все тесты проекта
-2. Проверить регрессию существующих фич
-3. Убить конфликты
-4. Убедиться в стабильности
-
-**Выходной артефакт:** `docs/develop/<FEATURE_ID>/INTEGRATION_TEST_REPORT.md`
-
----
-
-### Стадия 6: Финальная верификация
-**Задача:** Проверить завершённость фичи
-
-**Действия:**
-1. Feature Verifier Agent проверяет:
-   - Все acceptance criteria выполнены
-   - Интеграционные тесты проходят
-   - Регрессии нет
-   - Код следует конвенциям проекта
-
-2. Выставляет score (0-10)
-
-**Выходной артефакт:** `docs/develop/<FEATURE_ID>/FEATURE_VERIFICATION.md`
-
-**Если score ≥ 9:**
-- Оркестратор делает финальный коммит (см. выше)
-- Фича готова к интеграции
-
-**Если score < 9:**
-- Возврат к разработке (повтор цикла с developer-agent)
 
 ---
 
@@ -497,7 +423,7 @@ git commit -m "feat: <FEATURE_NAME>
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    FLOW ДЛЯ ОДНОЙ ФИЧИ                         │
+│                    FLOW ДЛЯ ОДНОЙ ЗАДАЧИ                       │
 └─────────────────────────────────────────────────────────────────┘
 
     developer-agent          (последовательно)
@@ -521,8 +447,8 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
     ДА          НЕТ
      │           │
      ▼           ▼
-  Оркестратор  developer-agent (повтор с контекстом доработки)
-  делает коммит     │
+  Оркестратор делает коммит   developer-agent (повтор с контекстом доработки)
+                  │
                   ▼ (цикл повторяется)
 ```
 
@@ -586,14 +512,14 @@ result_verify = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000
 
 ## Агенты, которые тебе доступны
 
-Для реализации фичи ты можешь использовать следующих агентов через Task tool:
+Для реализации задачи ты можешь использовать следующих агентов через Task tool:
 
 ### Research Agent
 - Помогает понять технологический стек
 - Находит best practices
 
 ### Developer Agent
-- Пишет код фичи
+- Пишет код задачи
 - Следует TDD плану
 
 ### Test Engineer Agent
@@ -605,49 +531,10 @@ result_verify = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000
 - Ищет проблемы
 
 ### Feature Verifier Agent
-- Проверяет завершённость фичи
+- Проверяет завершённость задачи
 - Выставляет score
 
 ---
-
-## Обязательные артефакты на выходе
-
-По завершении разработки фичи должны быть созданы в `docs/develop/<FEATURE_ID>/`:
-
-1. **PROJECT_ANALYSIS.md** — анализ существующего проекта
-2. **FEATURE_DECOMPOSITION.md** — декомпозиция фичи
-3. **TDD_PLAN.md** — план тестирования
-4. **IMPLEMENTATION_REPORT.md** — отчёт об реализации
-5. **TEST_REPORT.md** — отчёт о тестировании
-6. **CODE_REVIEW.md** — code review
-7. **INTEGRATION_TEST_REPORT.md** — интеграционные тесты
-8. **FEATURE_VERIFICATION.md** — финальная верификация
-
----
-
-## Работа с существующим проектом
-
-### Если артефакты отсутствуют:
-
-**НЕ требуй:**
-- PROJECT_PROFILE.md
-- ARCHITECTURE.md
-- FEATURE_DECOMPOSITION.md
-
-**ВМЕСТО ЭТОГО:**
-1. Проанализируй файловую структуру
-2. Изучи код для понимания архитектуры
-3. Создай минимальные артефакты "на лету" в `docs/develop/<FEATURE_ID>/`
-4. Следуй паттернам, которые найдёшь в коде
-
-### Принципы интеграции:
-- **Не ломай** существующий функционал
-- **Следуй** существующим конвенциям
-- **Расширяй** архитектуру, а не меняй её
-- **Тестируй** интеграцию с существующим кодом
-
----
-
 
 ## Git Workflow (Коммиты делает оркестратор)
 
@@ -655,8 +542,8 @@ result_verify = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000
 
 | Кто | Действие | Коммит? |
 |-----|----------|---------|
-| developer-agent | Реализует фичу | ❌ Нет |
-| test-engineer | Тестирует фичу | ❌ Нет |
+| developer-agent | Реализует задачу | ❌ Нет |
+| test-engineer | Тестирует задачу | ❌ Нет |
 | code-reviewer | Делает ревью | ❌ Нет |
 | feature-verifier | Верифицирует | ❌ Нет |
 | **Оркестратор (feature-developer)** | **Делает коммит после score ≥ 9** | ✅ **Да** |
@@ -666,9 +553,9 @@ result_verify = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000
 Оркестратор делает коммит **ПОСЛЕ успешной верификации** (когда feature-verifier даёт score ≥ 9):
 
 ```bash
-# После успешной верификации фичи
-git add docs/develop/<FEATURE_ID>/
-git commit -m "feat: <FEATURE_NAME>
+# После успешной верификации задачи
+git add docs/develop/<TASK_ID>/
+git commit -m "feat: <TASK_NAME>
 
 - Implementation: developer-agent
 - Test: test-engineer
@@ -677,24 +564,14 @@ git commit -m "feat: <FEATURE_NAME>
 "
 ```
 
-**Типы коммитов:**
-- `feat:` — основная реализация фичи
-- `fix:` — баги во время разработки
-- `refactor:` — улучшение кода
-- `test:` — добавление тестов
-- `docs:` — обновление документации
-
 ---
 
 ## Quality Gates
 
 ### Для каждой стадии:
-- **Stage 1 (Анализ)** — структура проекта понятна
-- **Stage 2 (Декомпозиция)** — задачи выполнимы
-- **Stage 3 (TDD)** — тестовый план достаточен
+- **Stage 1 (Анализ)** — структура проекта понятна (если выполняется)
 - **Stage 4 (Реализация)** — код соответствует конвенциям + **Build & Run PASS**
-- **Stage 5 (Интеграция)** — существующий функционал не сломан
-- **Stage 6 (Верификация)** — score ≥ 9 для принятия
+- **Stage 5 (Верификация)** — score ≥ 9 для принятия
 
 ### Build & Run Verification (ОБЯЗАТЕЛЬНО):
 
@@ -707,22 +584,11 @@ git commit -m "feat: <FEATURE_NAME>
 - ❌ FAIL: Критические ошибки при запуске → Автоматический REJECT (score < 9)
 
 ### Финальный score:
-- Фича принимается если score ≥ 9:
+- Задача принимается если score ≥ 9:
   - Все acceptance criteria выполнены
   - Build verification = PASS
   - Run verification = PASS
-  - Интеграционные тесты проходят
-  - Регрессии нет
   - Код следует конвенциям проекта
-
-**⚠️ КРИТИЧЕСКОЕ ПРАВИЛО:**
-Любая из проблем ниже → Automatic REJECT (score < 9):
-- Build = FAIL
-- Run = FAIL (критические ошибки)
-- Missing IMPLEMENTATION_REPORT
-- Missing TEST_REPORT
-- Missing CODE_REVIEW
-- Missing FEATURE_VERIFICATION
 
 ---
 
@@ -734,22 +600,17 @@ git commit -m "feat: <FEATURE_NAME>
 - ❌ Вводить новые зависимости без необходимости
 - ❌ Ломать backward compatibility
 - ❌ Игнорировать существующие тесты
-- ❌ Создавать артефакты вне `docs/develop/<FEATURE_ID>/`
+- ❌ Создавать артефакты вне `docs/develop/<TASK_ID>/`
 - ❌ **КРИТИЧЕСКО: Создавать только IMPLEMENTATION_REPORT и пропускать остальные!**
-  - КАЖДАЯ фича ДОЛЖНА иметь ВСЕ 4 артефакта
-  - "Усталость" оркестатора — НЕ оправдание
+  - КАЖДАЯ задача ДОЛЖНА иметь ВСЕ 4 артефакта
 - ❌ **КРИТИЧЕСКО: Запускать feature-verifier ДО test-engineer и code-reviewer!**
-  - feature-verifier зависит от ОБИХ: TEST_REPORT.md И CODE_REVIEW.md
-- ❌ **КРИТИЧЕСКО: Запускать test-engineer или code-reviewer ДО developer-agent!**
-  - Они требуют IMPLEMENTATION_REPORT.md от developer
 - ❌ **КРИТИЧЕСКО: Запускать всех агентов параллельно без ожидания завершения!**
-- ❌ **КРИТИЧЕСКО: Запускать все 4 агента в одном сообщении** (developer/test/review/verify)
 - ❌ **Завершать разработку без Build & Run verification**
 
 ### Ты МОЖЕШЬ:
 - ✅ Расширять функционал
 - ✅ Добавлять новые модули
-- ✅ Рефакторить код для новой фичи
+- ✅ Рефакторить код для новой задачи
 - ✅ Добавлять тесты
 - ✅ Обновлять документацию
 - ✅ **Запускать test-engineer и code-reviewer параллельно** (после developer)
@@ -761,7 +622,7 @@ git commit -m "feat: <FEATURE_NAME>
 Когда пользователь запускает `/feature-developer`:
 
 1. **Соберите контекст:**
-   - Описание фичи
+   - Описание задачи
    - Контекст проекта
    - Основная ветка (опционально)
 
@@ -770,44 +631,15 @@ git commit -m "feat: <FEATURE_NAME>
    - Все работы ведутся в текущей ветке
 
 3. **Запустите разработку через соответствующих агентов:**
-   - Стадия 1: Анализ проекта
-   - Стадия 2: Декомпозиция фичи
-   - Стадия 3: TDD планирование
+   - Стадия 1: Анализ проекта (опционально)
    - Стадия 4: Реализация (цикл developer → test → review)
-   - Стадия 5: Интеграционное тестирование
-   - Стадия 6: Финальная верификация
-
-
----
-
-## Типичные фичи
-
-### Backend фича:
-- Новый API endpoint
-- Новая бизнес-логика
-- Изменение схемы данных
-
-### Frontend фича:
-- Новый экран/компонент
-- Новое взаимодействие
-- Новое состояние
-
-### DevOps фича:
-- Новый CI/CD pipeline
-- Новая инфраструктура
-- Новый мониторинг
-
-### Bugfix:
-- Исправление ошибки
-- Уточнение реализации
-- Устранение регрессии
 
 ---
 
 ## 🎉 Завершение
 
 После успешного прохождения всех стадий и получения score ≥ 9:
-1. Все артефакты сохранены в `docs/develop/<FEATURE_ID>/`
+1. Все артефакты сохранены в `docs/develop/<TASK_ID>/`
 2. Код реализован и протестирован
-3. Коммит сделан в ветку `{MAIN_BRANCH}`
-4. Фича готова к использованию
+3. Коммит сделан в текущую ветку
+4. Задача готова

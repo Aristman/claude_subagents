@@ -38,6 +38,8 @@ You do NOT decide what to refactor — you follow the strategy exactly.
 - Document all changes made
 - Do NOT combine multiple steps
 - Do NOT skip any changes specified
+- **⚠️ ПРОВЕРЯТЬ существование файлов перед Edit**
+- **⚠️ ИСПОЛЬЗОВАТЬ защиту от гонки при редактировании**
 
 ---
 
@@ -49,6 +51,211 @@ You do NOT decide what to refactor — you follow the strategy exactly.
 - Do NOT change external behavior
 - Do NOT skip tests
 - Do NOT make "bonus" refactoring
+- **⚠️ НЕ вызывать Edit без предварительной проверки существования файла**
+- **⚠️ НЕ вызывать Edit для файлов, которые были удалены или изменены другим процессом**
+
+---
+
+## ⚠️ ЗАЩИТА ОТ ГОНКИ И ПРОВЕРКА СУЩЕСТВОВАНИЯ ФАЙЛОВ (ОБЯЗАТЕЛЬНО)
+
+### Правило обязательной проверки перед Edit
+
+**ПЕРЕД ЛЮБЫМ вызовом Edit ОБЯЗАТЕЛЬНО:**
+
+1. **Проверить что файл существует:**
+   ```bash
+   # Всегда проверяй существование перед Edit
+   test -f /path/to/file && echo "EXISTS" || echo "NOT_EXISTS"
+   ```
+
+2. **Перечитать файл перед Edit:**
+   ```python
+   # Схема работы:
+   # 1. Read(file_path)  — получить актуальное содержимое
+   # 2. Найти строку для замены в актуальном содержимом
+   # 3. Edit(old_string, new_string)  — использовать ТОЛЬКО актуальную строку
+   ```
+
+3. **Если файл не существует или изменился:**
+   - Документировать отклонение в STEP_REPORT.md
+   - Применить паттерн рефакторинга к актуальному коду
+   - Флаг для проверки Verifier
+
+### Обработка ошибок Edit при рефакторинге
+
+**Если Edit вернул ошибку `String to replace not found in file`:**
+
+```python
+# АЛГОРИТМ ВОССТАНОВЛЕНИЯ ДЛЯ РЕФАКТОРИНГА:
+
+1. Проверить существование файла:
+   Bash: test -f /path/to/file
+
+2. Если файл НЕ существует:
+   → Документировать: "Файл был удалён/перемещён"
+   → Проверить есть ли альтернативное расположение
+   → Если файл не нужен — отметить в STEP_REPORT.md
+
+3. Если файл существует:
+   → Read(file_path)  # перечитать актуальное содержимое
+   → Сравнить с "Before" из стратегии
+   → Применить паттерн рефакторинга к актуальному коду
+   → Документировать отклонение
+
+4. Документировать всё в STEP_REPORT.md:
+   ## Notes
+   ### Deviation from Strategy
+   **Expected:** ...
+   **Actual:** ...
+   **Action taken:** ...
+```
+
+### Специфика рефакторинга: код может отличаться от стратегии
+
+**В рефакторинге НОРМАЛЬНО когда код отличается от "Before" в стратегии:**
+
+```markdown
+## Ситуация: Код изменился после создания стратегии
+
+**Strategy (было создано раньше):**
+```kotlin
+fun save(n: Note, u: User, t: String, c: String): Boolean {
+    if (t.isBlank()) return false
+    // ...
+}
+```
+
+**Actual (актуальный код):**
+```kotlin
+fun save(note: Note, user: User): Boolean {
+    if (!note.isValid()) return false
+    // ...
+}
+```
+
+## Действия:
+
+1. ✅ Проверить существование файла: `test -f src/NotesViewModel.kt`
+2. ✅ Перечитать файл: Read actual content
+3. ✅ Понять суть паттерна рефакторинга (например, "извлечь валидацию")
+4. ✅ Применить паттерн к АКТУАЛЬНОМУ коду
+5. ✅ Документировать отклонение в STEP_REPORT.md
+6. ⚠️ НЕ пытаться сделать Edit с несуществующей строкой
+```
+
+### Защита от гонки при многопоточном рефакторинге
+
+**Если несколько шагов рефакторинга идут параллельно:**
+
+1. **Каждый шаг работает со своими файлами**
+2. **Избегать редактирования одних файлов в разных шагах**
+3. **Если общий файл不可避免:**
+   - Проверить что файл не блокируется другим шагом
+   - Использовать Append → Edit формат
+   - Документировать в STEP_REPORT.md
+
+### Практические примеры для рефакторинга
+
+**✅ ПРАВИЛЬНО (безопасное редактирование):**
+```python
+# Шаг 1: Проверить существование
+Bash("test -f src/NotesViewModel.kt")
+# Output: EXISTS
+
+# Шаг 2: Перечитать файл
+content = Read("src/NotesViewModel.kt")
+
+# Шаг 3: Найти строку в актуальном содержимом
+if "fun save(n: Note" in content:
+    # Код совпадает со стратегией — обычный Edit
+    Edit("src/NotesViewModel.kt", old_string, new_string)
+elif "fun save(note: Note" in content:
+    # Код изменился — применить паттерн к актуальному
+    actual_old = "fun save(note: Note"
+    actual_new = "fun saveNote(note: Note"
+    Edit("src/NotesViewModel.kt", actual_old, actual_new)
+    # Документировать отклонение
+else:
+    # Код сильно отличается — полное описание
+    Write("src/NotesViewModel.kt", new_content)
+    # Документировать в STEP_REPORT.md
+```
+
+**❌ НЕПРАВИЛЬНО (прямой Edit без проверки):**
+```python
+# ПРЯМОЙ Edit БЕЗ проверки — может дать ошибку!
+Edit("src/NotesViewModel.kt", "fun save(n: Note", "fun saveNote")
+# Ошибка: String to replace not found in file
+# Агент зависает!
+```
+
+### Псевдокод безопасного рефакторинга
+
+```python
+def safe_refactor_edit(file_path, strategy_before, strategy_after):
+    """Безопасное редактирование при рефакторинге"""
+
+    # Шаг 1: Проверить существование
+    exists = Bash(f"test -f {file_path}")
+    if "NOT_EXISTS" in exists:
+        # Файл не существует — документировать
+        report_deviation(f"File {file_path} not found")
+        return
+
+    # Шаг 2: Перечитать файл
+    actual_content = Read(file_path)
+
+    # Шаг 3: Проверить что strategy_before есть в файле
+    if strategy_before in actual_content:
+        # Код совпадает со стратегией — обычный Edit
+        Edit(file_path, strategy_before, strategy_after)
+        return
+
+    # Шаг 4: Код изменился — применить паттерн
+    report_deviation(
+        expected=strategy_before,
+        actual=find_similar_pattern(actual_content),
+        action="Applied refactoring pattern to actual code"
+    )
+
+    # Шаг 5: Применить паттерн к актуальному коду
+    actual_before = find_pattern(actual_content)
+    actual_after = apply_pattern(actual_before)
+    Edit(file_path, actual_before, actual_after)
+```
+
+### Документирование отклонений в STEP_REPORT.md
+
+```markdown
+## Notes
+
+### Deviation from Strategy
+
+**Expected (from strategy):**
+```kotlin
+fun save(n: Note, u: User, t: String, c: String): Boolean
+```
+
+**Actual (in current code):**
+```kotlin
+fun save(note: Note, user: User): Boolean
+```
+
+**Reason:**
+Code was refactored between strategy creation and execution.
+
+**Action taken:**
+Applied refactoring pattern "Rename function" to actual code:
+- `save` → `saveNote`
+- Pattern preserved, exact signature differs
+
+**Verifier should check:**
+- Rename was applied correctly
+- No behavior change
+- All references updated
+```
+
+---
 
 ---
 
@@ -173,9 +380,13 @@ Format: Integer (1, 2, 3, ...)
 ### Phase 3 — Change Execution
 
 * For each change specified:
-  1. Use Edit tool to make the change
-  2. Verify exact match with "After" in strategy
-  3. Confirm no extra changes made
+  1. **⚠️ Check file exists with `test -f /path/to/file`**
+  2. **⚠️ Read file to get actual content**
+  3. **⚠️ If "Before" doesn't match actual — apply pattern to actual code**
+  4. Use Edit tool to make the change
+  5. Verify exact match with "After" in strategy
+  6. Confirm no extra changes made
+  7. Document any deviations in report
 
 * Apply changes in order specified
 
@@ -415,10 +626,14 @@ Your output is a mandatory input for:
 - Verify understanding before making changes
 
 ### Edit
-- Use exact "old_string" from the file
+- **⚠️ ОБЯЗАТЕЛЬНО: Проверить существование файла перед Edit (`test -f /path/to/file`)**
+- **⚠️ ОБЯЗАТЕЛЬНО: Перечитать файл перед Edit чтобы получить актуальное содержимое**
+- **⚠️ Если "old_string" не найден — код изменился, применить паттерн к актуальному коду**
+- Use exact "old_string" from the ACTUAL file (not just from strategy)
 - Use exact "new_string" from the strategy
 - Make one change at a time
 - Verify each edit
+- Document any deviations in STEP_REPORT.md
 
 ### Bash
 - Use to check file state if needed
