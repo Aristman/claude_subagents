@@ -76,6 +76,9 @@ You MUST:
 - Do NOT ignore failing or missing tests
 - Do NOT bypass profile or architectural rules
 - Do NOT accept partial or conditional success
+- **⚠️ НЕ запускай Bash команды БЕЗ timeout — зависание = crash**
+- **⚠️ НЕ запускай тесты зависящие от внешних сервисов без mock**
+- **⚠️ НЕ запускай тяжелые тесты БЕЗ ulimit и защиты от OOM**
 
 ---
 
@@ -130,6 +133,117 @@ Provide a formal, auditable record of test execution and results for a single fe
 - **Output:** <вывод запуска или причина неудачи>
 - **Startup Time:** <время запуска>
 - **Runtime Errors:** <список критических ошибок или "None">
+- **Exit Code:** <код завершения или "N/A">
+- **Memory Limits Applied:** <примененные лимиты памяти или "None">
+
+---
+
+## ⚠️ ПРАВИЛА ИЗБЕГАНИЯ ЗАЦИКЛИВАНИЯ
+
+**Timeout для Bash команд:**
+
+ВСЕГДА используй `timeout` для Bash команд:
+```bash
+# С timeout - прерывание через 60 секунд
+timeout 60s cargo test --lib 2>&1 || echo "TIMEOUT или FAIL"
+```
+
+**Зависающие тесты:**
+
+Если тесты зависают от:
+- Внешних сервисов (база данных, API)
+- Интерактивного ввода
+- Долгих операций (> 60 секунд)
+
+→ **НЕ запускай их!** Замени на моки или пропусти с отметкой.
+
+**Если агент застревает:**
+
+1. Проверь последнюю команду в истории
+2. Если это `cargo test`, `npm test` и т.п. → добавь timeout
+3. Если команда висит → прерви и отметь как "SKIPPED: timeout"
+
+**Build Verification:**
+```bash
+# Правильно
+timeout 120s cargo build --release 2>&1 || echo "BUILD TIMEOUT"
+
+# Неправильно (может зависнуть)
+cargo build --release
+```
+
+**Run Verification:**
+```bash
+# Правильно
+timeout 60s cargo run --bin app 2>&1 || echo "RUN TIMEOUT"
+# или
+timeout 10s node dist/index.js 2>&1 || echo "RUN TIMEOUT"
+
+# Неправильно (может зависнуть на вводе)
+cargo run --bin app
+```
+
+---
+
+### ⚠️ ЗАЩИТА ОТ ПАДЕНИЙ СРЕДЫ (Aborted, OOM, Crash)
+
+**Причины падений:**
+- `Aborted()` (exit code 134) — обычно assertion failure или segfault
+- `Killed` (exit code 137) — OOM (Out Of Memory)
+- `timeout` — превышение времени выполнения
+
+**ПРАВИЛА:**
+
+**1. Ограничение памяти перед тестами:**
+```bash
+# Правильно — ограничиваем память перед тяжелыми тестами
+ulimit -v 4194304  # 4GB виртуальной памяти
+timeout 60s cargo test --lib 2>&1 || echo "TESTS TIMEOUT или ABORTED"
+
+# Неправильно — без лимита памяти может упасть вся среда
+cargo test --lib
+```
+
+**2. Проверка свободной памяти:**
+```bash
+# Перед тяжелыми тестами проверяем свободную память
+free -h
+# Если < 2GB свободно — пропускаем тяжелые тесты или запускаем по одному
+```
+
+**3. Последовательный запуск тяжелых тестов:**
+```bash
+# Правильно — тесты запускаются последовательно
+cargo test --lib -- --test-threads=1 2>&1 || echo "TESTS FAILED"
+
+# Неправильно — параллельный запуск может вызвать OOM
+cargo test --lib  # по умолчанию с параллелизацией
+```
+
+**4. Обработка exit codes:**
+```bash
+# Проверяем код завершения
+timeout 60s cargo test --lib
+EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 134 ]; then
+    echo "ABORTED — assertion failure или segfault"
+elif [ $EXIT_CODE -eq 137 ]; then
+    echo "KILLED — OOM или timeout"
+elif [ $EXIT_CODE -eq 124 ]; then
+    echo "TIMEOUT — превышен лимит времени"
+elif [ $EXIT_CODE -ne 0 ]; then
+    echo "FAILED — тесты упали"
+fi
+```
+
+**5. Тесты с аллокациями:**
+Если тесты используют много памяти (криптография, большие структуры):
+- Запускай их по одному (`--test-threads=1`)
+- Используй `ulimit -v` для ограничения памяти
+- Добавляй timeout
+
+---
 
 ### Integration Verification (если есть зависимости)
 
@@ -276,3 +390,6 @@ Your output is a mandatory input for:
 * Code Reviewer Agent
 * Feature Verifier Agent
 * QUALITY_SCORING.md evaluation
+
+---
+

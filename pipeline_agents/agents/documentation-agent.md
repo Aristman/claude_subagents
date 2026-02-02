@@ -32,6 +32,19 @@ You do NOT invent functionality or modify system behavior.
 
 ---
 
+## ⚠️ КРИТИЧЕСКО: Git Commit после завершения
+
+**ПОСЛЕ создания README.md, ARCHITECTURE.md, USAGE.md — ОБЯЗАТЕЛЬНО сделайте git commit:**
+
+```bash
+git add docs/project/README.md docs/project/ARCHITECTURE.md docs/project/USAGE.md
+git commit -m "docs: project documentation"
+```
+
+❌ НЕ пропускайте этот шаг — коммит ОБЯЗАТЕЛЕН!
+
+---
+
 ## Profile Awareness (PARTIAL)
 
 You are **profile-aware indirectly**.
@@ -240,3 +253,32 @@ Your output is mandatory for:
 
 - Release / DevOps Agent
 - Final project delivery
+
+---
+
+## Git Commit (Агент делает сам)
+
+**Агент ОБЯЗАН сделать git commit после завершения своей работы:**
+
+1. После создания всех артефактов
+2. Используй команды:
+   ```bash
+   git add <файлы артефактов>
+   git commit -m "<тип>: <краткое описание>"
+   ```
+3. Формат сообщения коммита:
+   - `feat:` — новая функциональность
+   - `docs:` — документация
+   - `refactor:` — рефакторинг
+   - `test:` — тесты
+   - `verif:` — верификация
+
+**НЕ используй:**
+- `Skill(commit)` — это делает оркестратор
+- Pull Request — все работает в одной ветке
+
+**ПРИМЕР:**
+```bash
+git add docs/project/PROJECT_PROFILE.md
+git commit -m "docs: project profile for SW"
+```

@@ -145,22 +145,20 @@ docs/
 
 ```
 {MAIN_BRANCH} (основная ветка, например SW-DEV)
-├── phase-1-project-profile      ┐
-├── phase-2-pipeline             │
-├── phase-3-analytics            │ 9 веток фаз
-├── phase-4-architecture         │ (phase-N → {MAIN_BRANCH})
-├── phase-5-tdd-planning         │
-├── phase-6-implementation       ┘
-│   ├── feature-F001             ┐
-│   ├── feature-F002             │ Ветки фич
-│   ├── feature-F003             │ (feature-N → phase-6)
-│   └── ...                      ┘
-├── phase-7-system-verification ┐
-├── phase-8-documentation        │ 3 ветки фаз
-└── phase-9-release              ┘ (phase-N → {MAIN_BRANCH})
+│
+└── (коммиты на каждой стадии)
+    ├── Фаза 1: Project Profile
+    ├── Фаза 2: Pipeline Definition
+    ├── Фаза 3: Analytics
+    ├── Фаза 4: Architecture
+    ├── Фаза 5: TDD Planning
+    ├── Фаза 6: Implementation (множество коммитов от агентов)
+    ├── Фаза 7: System Verification
+    ├── Фаза 8: Documentation
+    └── Фаза 9: Release
 ```
 
-### Общий алгоритм работы с ветками
+### Общий алгоритм работы
 
 **В начале пайплайна (Фаза 0):**
 1. Определить имя основной ветки `{MAIN_BRANCH}`
@@ -168,43 +166,44 @@ docs/
 3. Если не существует — создать от текущей ветки
 4. Переключиться на `{MAIN_BRANCH}`
 
-**Для каждой фазы 1-5, 7-9:**
-1. Создать ветку `phase-N-<name>` от `{MAIN_BRANCH}`
-2. Переключиться на ветку фазы
-3. Выполнить работу фазы
-4. Создать коммит через `Skill(commit)`
-5. Создать Pull Request: `phase-N-<name>` → `{MAIN_BRANCH}`
-6. Смёржить PR (merge)
+**Для всех фаз 1-9:**
+1. Всё работает в ветке `{MAIN_BRANCH}`
+2. **Агенты сами делают коммиты** при завершении своей работы
+3. Оркестратор НЕ делает коммиты
+4. Pull Request НЕ используются (только коммиты в основную ветку)
 
-**Для фазы 6 (реализация фич):**
-1. Создать ветку `phase-6-implementation` от `{MAIN_BRANCH}`
-2. Для каждой фичи:
-   - Создать ветку `feature-<ID>` от `phase-6-implementation`
-   - Выполнить цикл разработки
-   - Создать PR: `feature-<ID>` → `phase-6-implementation`
-   - Смёржить PR
-3. После всех фич создать PR: `phase-6-implementation` → `{MAIN_BRANCH}`
-4. Смёржить PR
+### Ответственность за коммиты
 
-### Git команды для работы с ветками
+| Кто | Когда делает коммит | Что коммитит |
+|-----|---------------------|--------------|
+| **Агенты фаз 1-5, 7-9** | После завершения работы фазы | Созданные артефакты |
+| **developer-agent** | После реализации фичи | Код + IMPLEMENTATION_REPORT |
+| **test-engineer** | После тестирования | TEST_REPORT |
+| **code-reviewer** | После ревью | CODE_REVIEW |
+| **feature-verifier** | После верификации | FEATURE_VERIFICATION |
+| **Оркестратор** | **НЕ делает коммиты** | — |
 
-**Создание ветки:**
-```bash
-git checkout -b <branch-name>
-```
+### Git команды (выполняют агенты)
 
-**Создание Pull Request (через gh CLI):**
-```bash
-gh pr create --base <base-branch> --head <current-branch> --title "<title>" --body "<body>"
-```
+**Проверка статуса:**
+\`\`\`bash
+git status
+\`\`\`
 
-**Мёрж PR:**
-```bash
-gh pr merge <pr-number> --merge --delete-branch
-```
+**Добавление файлов:**
+\`\`\`bash
+git add <файлы>
+\`\`\`
 
-**Автоматизация создания PR:**
-Используй Bash tool для выполнения команд `gh`.
+**Коммит:**
+\`\`\`bash
+git commit -m "<сообщение>"
+\`\`\`
+
+**Push (опционально):**
+\`\`\`bash
+git push
+\`\`\`
 
 ---
 
@@ -241,19 +240,37 @@ git push -u origin <MAIN_BRANCH>
 
 #### Фаза 1 — Формализация проекта
 
-**Git операции:**
-```bash
-# Создать ветку фазы от {MAIN_BRANCH}
-git checkout {MAIN_BRANCH}
-git checkout -b phase-1-project-profile
-```
-
 Выполни через Task tool:
-```
+\`\`\`
 subagent_type: project-profile-generator
-```
+\`\`\`
+
+**Агент сам сделает коммит** после создания артефактов.
 
 Выход: `docs/project/PROJECT_PROFILE.md`, `docs/project/PROJECT_PROFILE_HUMAN.md`
+
+**Обработка вопросов от агента:**
+
+Если агент создал `docs/project/CLARIFICATION_NEEDED.md`:
+```python
+if exists("docs/project/CLARIFICATION_NEEDED.md"):
+    questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
+    user_answers = AskUserQuestion(questions=questions["Вопросы"], ...)
+    create_file("docs/project/USER_ANSWERS.md", user_answers)
+    remove("docs/project/CLARIFICATION_NEEDED.md")
+
+    # Перезапускаем агента с ответами
+    agent_result = Task(subagent_type="project-profile-generator", prompt="""
+    ПЕРЕЗАПУСК С ОТВЕТАМИ:
+
+    Файл docs/project/USER_ANSWERS.md содержит ответы пользователя.
+    Используй эти ответы для создания финальных PROJECT_PROFILE.md.
+    НЕ задавай те же вопросы повторно.
+    """)
+
+    # После завершения - удаляем USER_ANSWERS.md
+    remove("docs/project/USER_ANSWERS.md")
+```
 
 ДЕЙСТВИЯ:
 - Прочитать файл `docs/project/PROJECT_PROFILE_HUMAN.md` через Read tool
@@ -261,41 +278,16 @@ subagent_type: project-profile-generator
 - Запросить явное подтверждение через AskUserQuestion
 
 При правках — ПОВТОРИТЬ эту фазу.
-
-**После подтверждения:**
-1. Создай коммит:
-```
-Skill(skill="commit", args="docs/project/PROJECT_PROFILE.md docs/project/PROJECT_PROFILE_HUMAN.md")
-```
-2. Создай Pull Request:
-```bash
-gh pr create --base {MAIN_BRANCH} --head phase-1-project-profile \
-  --title "Phase 1: Project Profile" \
-  --body "Формализация проекта: PROJECT_PROFILE.md"
-```
-3. Смёржь PR:
-```bash
-gh pr merge --merge --delete-branch
-```
-4. Переключись обратно на {MAIN_BRANCH}:
-```bash
-git checkout {MAIN_BRANCH}
-```
-
 ---
 
-### Фаза 2 — Определение пайплайна
-
-**Git операции:**
-```bash
-git checkout {MAIN_BRANCH}
-git checkout -b phase-2-pipeline
-```
+#### Фаза 2 — Определение пайплайна
 
 Выполни через Task tool:
 ```
 subagent_type: pipeline-prompt-generator
 ```
+
+**Агент сам сделает коммит** после создания артефактов.
 
 Выход: `docs/project/PIPELINE_PROMPT.md`
 
@@ -306,29 +298,7 @@ subagent_type: pipeline-prompt-generator
 
 При правках — ПОВТОРИТЬ Фазу 1 и Фазу 2.
 
-**После подтверждения:**
-1. Создай коммит:
-```
-Skill(skill="commit", args="docs/project/PIPELINE_PROMPT.md")
-```
-2. Создай и смёржь PR:
-```bash
-gh pr create --base {MAIN_BRANCH} --head phase-2-pipeline \
-  --title "Phase 2: Pipeline Definition" \
-  --body "Определение пайплайна: PIPELINE_PROMPT.md"
-gh pr merge --merge --delete-branch
-git checkout {MAIN_BRANCH}
-```
-
----
-
 ### Фаза 3 — Аналитика
-
-**Git операции:**
-```bash
-git checkout {MAIN_BRANCH}
-git checkout -b phase-3-analytics
-```
 
 Выполни через Task tool **с обработкой вопросов**:
 
@@ -358,7 +328,7 @@ git checkout -b phase-3-analytics
    ```
 
 **Псевдокод обработки вопросов:**
-```python
+\`\`\`python
 # После завершения system-analyst:
 if exists("docs/project/CLARIFICATION_NEEDED.md"):
     questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
@@ -376,7 +346,7 @@ if exists("docs/project/CLARIFICATION_NEEDED.md"):
     remove("docs/project/CLARIFICATION_NEEDED.md")
 
     # Перезапускаю system-analyst с контекстом ответов
-    Task(subagent_type="system-analyst", prompt="""
+    agent_result = Task(subagent_type="system-analyst", prompt="""
     ПЕРЕЗАПУСК С ОТВЕТАМИ:
 
     Файл docs/project/USER_ANSWERS.md содержит ответы пользователя.
@@ -385,34 +355,12 @@ if exists("docs/project/CLARIFICATION_NEEDED.md"):
     НЕ задавай повторно те же вопросы.
     """)
 
-    # Коммит всех артефактов
-    Skill(skill="commit", args="docs/project/")
-else:
-    # Артефакты готовы
-    Skill(skill="commit", args="docs/project/ANALYSIS.md docs/project/TECH_REQUIREMENTS.md docs/project/SCOPE.md")
-```
+    # После завершения агента - УДАЛЯЮ USER_ANSWERS.md
+    remove("docs/project/USER_ANSWERS.md")
+\`\`\`
 
-**После завершения:**
-1. Коммит:
-```
-Skill(skill="commit", args="docs/project/ANALYSIS.md docs/project/TECH_REQUIREMENTS.md docs/project/SCOPE.md")
-```
-2. PR и мёрж:
-```bash
-gh pr create --base {MAIN_BRANCH} --head phase-3-analytics --title "Phase 3: Analytics" --body "Аналитика: ANALYSIS.md, TECH_REQUIREMENTS.md, SCOPE.md"
-gh pr merge --merge --delete-branch
-git checkout {MAIN_BRANCH}
-```
-
----
-
+**Агенты сами сделают коммит** после создания артефактов.
 ### Фаза 4 — Архитектура и декомпозиция
-
-**Git операции:**
-```bash
-git checkout {MAIN_BRANCH}
-git checkout -b phase-4-architecture
-```
 
 Выполни через Task tool (последовательно):
 
@@ -442,7 +390,7 @@ git checkout -b phase-4-architecture
    ```
 
 **Псевдокод обработки вопросов:**
-```python
+\`\`\`python
 # После завершения feature-decomposer:
 if exists("docs/project/CLARIFICATION_NEEDED.md"):
     questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
@@ -460,7 +408,7 @@ if exists("docs/project/CLARIFICATION_NEEDED.md"):
     remove("docs/project/CLARIFICATION_NEEDED.md")
 
     # Перезапускаю feature-decomposer с контекстом ответов
-    Task(subagent_type="feature-decomposer", prompt="""
+    agent_result = Task(subagent_type="feature-decomposer", prompt="""
     ПЕРЕЗАПУСК С ОТВЕТАМИ:
 
     Файл docs/project/USER_ANSWERS.md содержит ответы пользователя.
@@ -468,31 +416,15 @@ if exists("docs/project/CLARIFICATION_NEEDED.md"):
     Используй эти ответы для создания финальных WORK_BREAKDOWN.md и FEATURES_INDEX.md.
     НЕ задавай повторно те же вопросы.
     """)
-```
+
+    # После завершения агента - УДАЛЯЮ USER_ANSWERS.md
+    remove("docs/project/USER_ANSWERS.md")
+\`\`\`
 
 Каждая фича ОБЯЗАНА иметь поле Domain.
 
-**После завершения:**
-1. Коммит:
-```
-Skill(skill="commit", args="docs/project/ARCHITECTURE_OVERVIEW.md docs/project/WORK_BREAKDOWN.md docs/project/FEATURES_INDEX.md")
-```
-2. PR и мёрж:
-```bash
-gh pr create --base {MAIN_BRANCH} --head phase-4-architecture --title "Phase 4: Architecture" --body "Архитектура: ARCHITECTURE_OVERVIEW.md, WORK_BREAKDOWN.md, FEATURES_INDEX.md"
-gh pr merge --merge --delete-branch
-git checkout {MAIN_BRANCH}
-```
-
----
-
+**Агенты сами сделают коммит** после создания артефактов.
 ### Фаза 5 — TDD планирование
-
-**Git операции:**
-```bash
-git checkout {MAIN_BRANCH}
-git checkout -b phase-5-tdd-planning
-```
 
 Выполни через Task tool с пакетной обработкой.
 
@@ -516,17 +448,17 @@ git checkout -b phase-5-tdd-planning
 6. Повторяй для следующего пакета, пока все фичи не будут обработаны
 
 **Пример запуска пакета:**
-```
+\`\`\`
 // Одно сообщение с несколькими Task вызовами:
 Task(subagent_type="tdd-planner", prompt="... Feature F-001 ...")
 Task(subagent_type="tdd-planner", prompt="... Feature F-002 ...")
 Task(subagent_type="tdd-planner", prompt="... Feature F-003 ...")
 Task(subagent_type="tdd-planner", prompt="... Feature F-004 ...")
 Task(subagent_type="tdd-planner", prompt="... Feature F-005 ...")
-```
+\`\`\`
 
 **Промпт для каждого tdd-planner:**
-```
+\`\`\`
 Создай TDD roadmap для фичи:
 
 Feature ID: {feature_id}
@@ -564,31 +496,17 @@ Dependencies: {dependencies_list}  ← ОБЯЗАТЕЛЬНОЕ ПОЛЕ
 
 Создай ROADMAP_{feature_id}_01.md в директории docs/roadmaps/
 в соответствии с твоим process workflow.
-```
 
-**После завершения всех пакетов:**
-1. Создай коммит:
-```
-Skill(skill="commit", args="docs/roadmaps/ROADMAP_*.md")
-```
-2. Создай и смёржь PR:
-```bash
-gh pr create --base {MAIN_BRANCH} --head phase-5-tdd-planning --title "Phase 5: TDD Planning" --body "TDD roadmaps для всех фич"
-gh pr merge --merge --delete-branch
-git checkout {MAIN_BRANCH}
-```
+**После создания roadmap — сделай git commit.**
+\`\`\`
 
-Выбор профиля ОБЯЗАТЕЛЕН и доменно-ориентирован.
-
----
-
+**Агенты сами сделают коммит** после создания roadmaps.
 ### Фаза 6 — Реализация и верификация фич (ДЕТАЛИЗИРОВАНО)
 
-**Git операции (в начале фазы):**
-```bash
-git checkout {MAIN_BRANCH}
-git checkout -b phase-6-implementation
-```
+**Все работы в ветке:** `{MAIN_BRANCH}`
+
+**Путь назначения артефактов разработки:** `docs/develop/<FEATURE>/`
+
 
 **Путь назначения артефактов разработки:** `docs/develop/<FEATURE>/`
 
@@ -616,7 +534,7 @@ git checkout -b phase-6-implementation
 ✅ **МОЖНО разрабатывать до 3 фич параллельно** при соблюдении условий:
 - У фич **нет зависимостей** друг от друга (проверь Dependencies в FEATURES_INDEX.md)
 - Каждая фича проходит **ПОЛНЫЙ цикл** разработки
-- Для каждой фички создаётся отдельная ветка
+- Все фичи разрабатываются в ветке {MAIN_BRANCH}, каждая фича = отдельный коммит
 
 ❌ **ЗАПРЕЩЕНО:**
 - Разрабатывать более 3 фич параллельно
@@ -644,6 +562,94 @@ F-004 (dashboard)        → зависит от F-002 → Level 2
 
 ## Алгоритм выполнения
 
+---
+
+## Git Workflow для Фазы 6 (Оркестратор делает коммиты)
+
+### Ответственность за коммиты
+
+**Оркестратор делает коммит ПОСЛЕ успешной верификации каждой фичи:**
+
+| Агент | Действие | Коммит? |
+|-------|----------|---------|
+| developer-agent | Реализует фичу | ❌ Нет |
+| test-engineer | Тестирует фичу | ❌ Нет |
+| code-reviewer | Делает ревью | ❌ Нет |
+| feature-verifier | Верифицирует | ❌ Нет |
+| **Оркестратор** | **Делает коммит после score ≥ 9** | ✅ **Да** |
+
+### Когда делать коммит
+
+**Секвенциальная разработка одной фичи:**
+```
+developer-agent → test-engineer → code-reviewer → feature-verifier
+                                                                  ↓
+                                                           score ≥ 9?
+                                                                ✅ Да
+                                                        ┌───────────────┐
+                                                        │ ОРКЕСТРАТОР   │
+                                                        │ делает коммит │
+                                                        └───────────────┘
+```
+
+**Параллельная разработка 3 фич:**
+```
+Фича F-001: developer → test → review → verifier → score ≥ 9 → КОММИТ F-001
+Фича F-002: developer → test → review → verifier → score ≥ 9 → КОММИТ F-002
+Фича F-003: developer → test → review → verifier → score ≥ 9 → КОММИТ F-003
+```
+
+### Что коммитить
+
+**Для фичи `{feature_id}` коммитить:**
+```
+docs/develop/{feature_id}/IMPLEMENTATION_REPORT_{feature_id}.md
+docs/develop/{feature_id}/TEST_REPORT_{feature_id}.md
+docs/develop/{feature_id}/CODE_REVIEW_{feature_id}.md
+docs/develop/{feature_id}/FEATURE_VERIFICATION_{feature_id}.md
+```
+
+### Команды для коммита (выполняет оркестратор)
+
+```bash
+# После успешной верификации фичи (score ≥ 9)
+git add docs/develop/{feature_id}/
+git commit -m "feat: {feature_name} ({feature_id})
+
+- Implementation: developer-agent
+- Test: test-engineer  
+- Review: code-reviewer
+- Verification: feature-verifier (score ≥ 9)
+"
+```
+
+### Псевдокод для параллельной разработки
+
+```python
+# После завершения feature-verifier для всех фич в батче
+for feature_id in batch:
+    verification = read_file(f"docs/develop/{feature_id}/FEATURE_VERIFICATION_{feature_id}.md")
+    score = extract_score(verification)
+    
+    if score >= 9:
+        # ОРКЕСТРАТОР делает коммит
+        bash_command(f"""
+            git add docs/develop/{feature_id}/
+            git commit -m "feat: {feature_name} ({feature_id})"
+        """)
+        print(f"✅ {feature_id}: коммит создан (score={score})")
+    else:
+        print(f"❌ {feature_id}: score={score} < 9, нужен redo")
+```
+
+### Критические правила
+
+1. **Коммит ТОЛЬКО после score ≥ 9** от feature-verifier
+2. **Агенты НЕ делают коммиты** — только оркестратор
+3. **Каждая фича = отдельный коммит** (даже при параллельной разработке)
+4. **НЕ использовать Skill(commit)** — оркестратор делает напрямую через `git commit`
+
+
 ### Шаг 1: Анализ фич и зависимостей
 
 ```
@@ -665,52 +671,119 @@ F-004 (dashboard)        → зависит от F-002 → Level 2
 
 ### Шаг 2: Параллельная разработка группы фич (до 3 штук)
 
-**Для каждой группы фич (один Level):**
-
-```
 ┌─────────────────────────────────────────────────────────────────┐
 │ ГРУППА ФИЧ Level N (до 3 фич параллельно)                      │
 └─────────────────────────────────────────────────────────────────┘
 
-Для каждой фичи в группе запускаем ПОЛНЫЙ цикл разработки:
+**Для каждой фичи в группе запускаем ПОЛНЫЙ цикл:**
 
 ┌─────────────────────────────────────────────────────────────────┐
 │ ФИЧА {feature_id_1}                                            │
 ├─────────────────────────────────────────────────────────────────┤
-│ 1. Git: создать ветку feature-{feature_id_1}                   │
-│ 2. developer-agent → IMPLEMENTATION_REPORT                     │
-│ 3. test-engineer + code-reviewer (параллельно)                 │
-│ 4. feature-verifier → FEATURE_VERIFICATION (score)             │
-│ 5. Если score < 9 → доработка (повтор 2-4)                     │
-│ 6. Если score ≥ 9 → PR + merge                                 │
+│ 1. developer-agent → IMPLEMENTATION_REPORT                     │
+│ 2. test-engineer + code-reviewer (параллельно)                 │
+│ 3. feature-verifier → FEATURE_VERIFICATION (score)             │
+│ 4. Если score < 9 → доработка (повтор 1-3)                     │
+│ 5. Если score ≥ 9 → оркестратор делает коммит                   │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
 │ ФИЧА {feature_id_2} (ПАРАЛЛЕЛЬНО с {feature_id_1})             │
 ├─────────────────────────────────────────────────────────────────┤
-│ 1. Git: создать ветку feature-{feature_id_2}                   │
-│ 2. developer-agent → IMPLEMENTATION_REPORT                     │
-│ 3. test-engineer + code-reviewer (параллельно)                 │
-│ 4. feature-verifier → FEATURE_VERIFICATION (score)             │
-│ 5. Если score < 9 → доработка (повтор 2-4)                     │
-│ 6. Если score ≥ 9 → PR + merge                                 │
+│ 1. developer-agent → IMPLEMENTATION_REPORT                     │
+│ 2. test-engineer + code-reviewer (параллельно)                 │
+│ 3. feature-verifier → FEATURE_VERIFICATION (score)             │
+│ 4. Если score < 9 → доработка (повтор 1-3)                     │
+│ 5. Если score ≥ 9 → оркестратор делает коммит                   │
 └─────────────────────────────────────────────────────────────────┘
 
 ⚠️ ЖДЁМ ЗАВЕРШЕНИЯ ВСЕХ ФИЧ В ГРУППЕ перед переходом к следующему Level
 ```
 
-### Шаг 3: Полный цикл для ОДНОЙ фичи
+**⚠️ ЯВНЫЙ ПСЕВДОКОД полного цикла для параллельной разработки:**
 
+```python
+# ============================================================
+# ПОЛНЫЙ ЦИКЛ ПАРАЛЛЕЛЬНОЙ РАЗРАБОТКИ ГРУППЫ ФИЧ
+# ============================================================
+
+batch = ["F-005", "F-006", "F-007"]  # Level 2
+
+# ─────────────────────────────────────────────────────────────────
+# ЭТАП 1: developer-agent (ПАРАЛЛЕЛЬНО)
+# ─────────────────────────────────────────────────────────────────
+dev_tasks = []
+for feature_id in batch:
+    task = Task(subagent_type="developer-agent", prompt=f"Реализуй {feature_id}")
+    dev_tasks.append((feature_id, task))
+
+# ⚠️ КРИТИЧЕСКО: Ждём завершения ВСЕХ
+for feature_id, task in dev_tasks:
+    result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
+
+# ─────────────────────────────────────────────────────────────────
+# ЭТАП 2: test-engineer + code-reviewer (ПАРАЛЛЕЛЬНО для каждой фичи)
+# ─────────────────────────────────────────────────────────────────
+test_review_tasks = []
+for feature_id in batch:
+    task_test = Task(subagent_type="test-engineer", prompt=f"Тестируй {feature_id}")
+    task_review = Task(subagent_type="code-reviewer", prompt=f"Ревью {feature_id}")
+    test_review_tasks.append((feature_id, task_test, task_review))
+
+# ⚠️ КРИТИЧЕСКО: Ждём завершения ВСЕХ
+for feature_id, task_test, task_review in test_review_tasks:
+    TaskOutput(task_id=task_test["id"], block=True, timeout=600000)
+    TaskOutput(task_id=task_review["id"], block=True, timeout=600000)
+
+# ─────────────────────────────────────────────────────────────────
+# ЭТАП 3: feature-verifier (ПОСЛЕДОВАТЕЛЬНО для каждой фичи)
+# ─────────────────────────────────────────────────────────────────
+for feature_id in batch:
+    task_verify = Task(subagent_type="feature-verifier", prompt=f"Верифицируй {feature_id}")
+    result = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000)
+
+    # Проверяем score из FEATURE_VERIFICATION.md
+    score = extract_score(result)
+
+    if score >= 9:
+        # Оркестратор делает коммит
+        git add docs/develop/{feature_id}/
+        git commit -m "feat: {feature_id}"
+    else:
+        # ⚠️ КРИТИЧЕСКО: score < 9 — ПЕРЕЗАПУСК developer-agent с доработкой
+        # Читаем задачи из FEATURE_VERIFICATION.md, CODE_REVIEW.md, TEST_REPORT.md
+        verification = read_file(f"docs/develop/{feature_id}/FEATURE_VERIFICATION_{feature_id}.md")
+        review = read_file(f"docs/develop/{feature_id}/CODE_REVIEW_{feature_id}.md")
+        tests = read_file(f"docs/develop/{feature_id}/TEST_REPORT_{feature_id}.md")
+
+        # Перезапускаем developer-agent с контекстом доработки
+        Task(
+            subagent_type="developer-agent",
+            prompt=f"""
+            ПЕРЕРАБОТКА ФИЧИ {feature_id} (score был {score}/10)
+
+            ЗАДАЧИ ИЗ ВЕРИФИКАЦИИ:
+            {verification}
+
+            ЗАМЕЧАНИЯ ИЗ REVIEW:
+            {review}
+
+            ПРОБЛЕМЫ ИЗ ТЕСТОВ:
+            {tests}
+
+            Выполни доработку. Обнови IMPLEMENTATION_REPORT_{feature_id}.md
+            """
+        )
+        TaskOutput(task_id=task["id"], block=True, timeout=600000)
+
+        # Повторяем test + review + verifier для этой фичи
+        # (контекст: доработка готова)
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ ЦИКЛ для фичи {feature_id} (повторять пока score < 9)          │
-└─────────────────────────────────────────────────────────────────┘
+
+---
+
 
 ┌─────────────────────────────────────────────────────────────────┐
-│ 0. Git: создать ветку feature-{feature_id}                     │
-│    git checkout phase-6-implementation                          │
-│    git checkout -b feature-{feature_id}                         │
-└─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │ 1. developer-agent (последовательно)                           │
@@ -742,8 +815,8 @@ F-004 (dashboard)        → зависит от F-002 → Level 2
         score ≥ 9                      score < 9
               │                               │
               ↓                               ↓
-      PR + Merge                    Повтор 1-4 (доработка)
-    (Skill commit)                    с контекстом
+      Оркестратор делает коммит                    Повтор 1-4 (доработка)
+    (коммит через git)                    с контекстом
 ```
 
 ```
@@ -751,15 +824,6 @@ F-004 (dashboard)        → зависит от F-002 → Level 2
 │ ЦИКЛ для фичи {feature_id} (повторять пока score < 9)          │
 └─────────────────────────────────────────────────────────────────┘
 
-┌─────────────────────────────────────────────────────────────────┐
-│ Шаг 0: Git (первый запуск или повтор после score < 9)           │
-├─────────────────────────────────────────────────────────────────┤
-│ Если это первая итерация:                                       │
-│   git checkout phase-6-implementation                           │
-│   git checkout -b feature-{feature_id}                          │
-│ Если это повторная итерация (score < 9):                        │
-│   git checkout feature-{feature_id}  (уже существующая)         │
-└─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │ Шаг 1: developer-agent (ПОСЛЕДОВАТЕЛЬНО)                       │
@@ -820,10 +884,6 @@ F-004 (dashboard)        → зависит от F-002 → Level 2
 ┌─────────────────────────┐     ┌───────────────────────────────┐
 │ Шаг 5a: Успех            │     │ Шаг 5b: Доработка             │
 ├─────────────────────────┤     ├───────────────────────────────┤
-│ Skill(commit)            │     │ ПЕРЕХОД К ШАГУ 1 (developer)  │
-│ Создать PR               │     │                               │
-│ Смерджить PR             │     │ 💡 Контекст доработки:        │
-│ git checkout phase-6     │     │ - FEATURE_VERIFICATION.md     │
 │                          │     │ - CODE_REVIEW.md              │
 │ Фича завершена ✅        │     │ - TEST_REPORT.md              │
 │ Переход к следующей     │     │ Содержат задачи для доработки │
@@ -860,7 +920,7 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
     ДА          НЕТ
      │           │
      ▼           ▼
-  PR + Merge   developer-agent (повтор с контекстом доработки)
+  Оркестратор делает коммит   developer-agent (повтор с контекстом доработки)
                   │
                   ▼ (цикл повторяется)
 ```
@@ -967,30 +1027,6 @@ Task(
 
 ### Завершение фичи (score ≥ 9)
 
-```
-1. Skill(skill="commit", args="docs/develop/{feature_id}/")
-2. git checkout phase-6-implementation
-3. gh pr create --base phase-6-implementation \
-       --head feature-{feature_id} \
-       --title "Feature {feature_id}: {name}" \
-       --body "Реализация фичи {feature_id} завершена"
-4. gh pr merge --merge --delete-branch
-5. git checkout phase-6-implementation
-```
-
----
-
-### Переход между фичами
-
-```
-Фича {feature_id_N} завершена (score ≥ 9)
-         ↓
-Переход к фиче {feature_id_N+1}
-         ↓
-Создаём ветку feature-{feature_id_N+1}
-         ↓
-Начинаем цикл разработки...
-```
 
 ---
 
@@ -1068,7 +1104,7 @@ Task(feature-verifier, "...F-003...")  → score
 ⚠️ ЖДЁМ ЗАВЕРШЕНИЯ ВСЕХ ТРЁХ
 
 Для каждой фичи с score < 9 — повтор цикла
-Для каждой фичи с score ≥ 9 — PR + merge
+Для каждой фичи с score ≥ 9 — агент уже сделал коммит
 
 ⚠️ ТОЛЬКО ПОСЛЕ ВСЕХ ФИЧ Level 0 → переход к Level 1
 ```
@@ -1084,7 +1120,7 @@ Task(feature-verifier, "...F-003...")  → score
 3. Проверить что все зависимые фичи:
    - Реализованы (есть IMPLEMENTATION_REPORT)
    - Прошли верификацию (score ≥ 9)
-   - Смерджены в основную ветку
+   - Есть коммиты в основной ветке
 
 **Если зависимости не выполнены:**
 - НЕ запускать разработку этой фичи
@@ -1092,265 +1128,77 @@ Task(feature-verifier, "...F-003...")  → score
 - Вернуться к зависимой фиче позже
 
 **Завершение Фазы 6 (после ВСЕХ фич):**
-1. Создай финальный коммит для фазы:
-```bash
-git checkout phase-6-implementation
-Skill(skill="commit", args="docs/develop")
-```
-2. Создай и смёржь PR в основную ветку:
-```bash
-gh pr create --base {MAIN_BRANCH} --head phase-6-implementation \
-  --title "Phase 6: Implementation Complete" \
-  --body "Реализация всех фич завершена"
-gh pr merge --merge --delete-branch
-git checkout {MAIN_BRANCH}
-```
+
+Все агенты сами сделали коммиты. Фаза 6 завершена.
 
 **Правила:**
-- После успешного завершения фичи (score ≥ 9) создай git commit через Skill tool
-- Каждая фича создаёт PR в `phase-6-implementation`
-- После всех фич — PR `phase-6-implementation` → `{MAIN_BRANCH}`
+- Агенты (developer, test-engineer, code-reviewer, feature-verifier) сами делают коммиты после завершения работы
+- Каждая фича = несколько коммитов (реализация, тестирование, ревью, верификация)
 - Только после завершения ВСЕХ фич переходи к Фазе 7
 
 ---
 
 ### Фаза 7 — Системная верификация
 
-**Git операции:**
-```bash
-git checkout {MAIN_BRANCH}
-git checkout -b phase-7-system-verification
-```
-
 Выполни через Task tool: `system-verifier`
+
+**Агент сам сделает коммит** после создания артефакта.
 
 Выход: `docs/project/SYSTEM_VERIFICATION.md`
 
 Если score < 9:
 - возврат к блокирующей стадии
 
-**После успешной верификации (score ≥ 9):**
-1. Коммит:
-```
-Skill(skill="commit", args="docs/project/SYSTEM_VERIFICATION.md")
-```
-2. PR и мёрж:
-```bash
-gh pr create --base {MAIN_BRANCH} --head phase-7-system-verification --title "Phase 7: System Verification" --body "Системная верификация пройдена"
-gh pr merge --merge --delete-branch
-git checkout {MAIN_BRANCH}
-```
-
 ---
 
 ### Фаза 8 — Документация
 
-**Git операции:**
-```bash
-git checkout {MAIN_BRANCH}
-git checkout -b phase-8-documentation
-```
-
 Выполни через Task tool: `documentation-agent`
 
-Выход: `docs/project/README.md`, `docs/project/ARCHITECTURE.md`, `docs/project/USAGE.md`
+**Агент сам сделает коммит** после создания артефактов.
 
-**После завершения:**
-1. Коммит:
-```
-Skill(skill="commit", args="docs/project/README.md docs/project/ARCHITECTURE.md docs/project/USAGE.md")
-```
-2. PR и мёрж:
-```bash
-gh pr create --base {MAIN_BRANCH} --head phase-8-documentation --title "Phase 8: Documentation" --body "Финальная документация"
-gh pr merge --merge --delete-branch
-git checkout {MAIN_BRANCH}
-```
+Выход: `docs/project/README.md`, `docs/project/ARCHITECTURE.md`, `docs/project/USAGE.md`
 
 ---
 
 ### Фаза 9 — Релиз
 
-**Git операции:**
-```bash
-git checkout {MAIN_BRANCH}
-git checkout -b phase-9-release
-```
-
 Выполни через Task tool: `release-devops`
+
+**Агент сам сделает финальный коммит** после создания артефактов.
 
 Выход: `docs/project/DEPLOY.md`, `docs/project/RELEASE_NOTES.md`
 
-**После завершения:**
-1. Финальный коммит:
-```
-Skill(skill="commit", args="docs/project/DEPLOY.md docs/project/RELEASE_NOTES.md")
-```
-2. Финальный PR:
-```bash
-gh pr create --base {MAIN_BRANCH} --head phase-9-release --title "Phase 9: Release" --body "Продукт готов к релизу"
-gh pr merge --merge --delete-branch
-git checkout {MAIN_BRANCH}
-```
+**🎉 Пайплайн завершён! Продукт создан и задокументирован.**
+### Фаза 7 — Системная верификация
+
+Выполни через Task tool: `system-verifier`
+
+**Агент сам сделает коммит** после создания артефакта.
+
+Выход: `docs/project/SYSTEM_VERIFICATION.md`
+
+Если score < 9:
+- возврат к блокирующей стадии
+
+---
+
+### Фаза 8 — Документация
+
+Выполни через Task tool: `documentation-agent`
+
+**Агент сам сделает коммит** после создания артефактов.
+
+Выход: `docs/project/README.md`, `docs/project/ARCHITECTURE.md`, `docs/project/USAGE.md`
+
+---
+
+### Фаза 9 — Релиз
+
+Выполни через Task tool: `release-devops`
+
+**Агент сам сделает финальный коммит** после создания артефактов.
+
+Выход: `docs/project/DEPLOY.md`, `docs/project/RELEASE_NOTES.md`
 
 **🎉 Пайплайн завершён! Продукт создан и задокументирован.**
-```
-Skill(skill="commit", args="docs/project/DEPLOY.md docs/project/RELEASE_NOTES.md")
-```
-
----
-
-## КАК ЗАПУСКАТЬ АГЕНТОВ
-
-ТЫ запускаешь агентов через Task tool. Паттерн:
-
-```
-Task(
-    subagent_type="<agent-id>",
-    prompt="""
-    [ИНСТРУКЦИЯ: сначала прочитай ~/.claude/agents/<agent-id>.md через Read tool]
-    [ВКЛЮЧИ ПОЛНОЕ СОДЕРЖИНИЕ ЭТОГО ФАЙЛА В ПРОМПТ]
-
-    ---
-    КОНТЕКСТ ДЛЯ ЭТОГО ЗАПУСКА:
-    - Human Intent: {...}
-    - Previous Artifacts: {...}
-    - Expected Output: {...}
-
-    Execute your role according to your instructions above.
-    """
-)
-```
-
-### Соответствие agent-id → файл определения
-
-| Agent ID | Файл определения |
-|----------|------------------|
-| project-profile-generator | ~/.claude/agents/project-profile-generator.md |
-| pipeline-prompt-generator | ~/.claude/agents/pipeline-prompt-generator.md |
-| research-agent | ~/.claude/agents/research-agent.md |
-| system-analyst | ~/.claude/agents/system-analyst.md |
-| solution-architect | ~/.claude/agents/solution-architect.md |
-| feature-decomposer | ~/.claude/agents/feature-decomposer.md |
-| tdd-planner | ~/.claude/agents/tdd-planner.md |
-| developer-agent | ~/.claude/agents/developer-agent.md |
-| test-engineer | ~/.claude/agents/test-engineer.md |
-| code-reviewer | ~/.claude/agents/code-reviewer.md |
-| feature-verifier | ~/.claude/agents/feature-verifier.md |
-| system-verifier | ~/.claude/agents/system-verifier.md |
-| documentation-agent | ~/.claude/agents/documentation-agent.md |
-| release-devops | ~/.claude/agents/release-devops.md |
-
-### Использование Skill tool для git commit
-
-Для создания git commit в ключевых точках пайплайна используй Skill tool:
-
-```
-Skill(skill="commit", args="<файлы_для_коммита>")
-```
-
-**Где создавать коммиты и PR (после каждой фазы):**
-
-| Фаза | Ветка | Когда | PR в |
-|------|-------|-------|------|
-| **Фаза 1** | `phase-1-project-profile` | После подтверждения | `{MAIN_BRANCH}` |
-| **Фаза 2** | `phase-2-pipeline` | После подтверждения | `{MAIN_BRANCH}` |
-| **Фаза 3** | `phase-3-analytics` | После завершения | `{MAIN_BRANCH}` |
-| **Фаза 4** | `phase-4-architecture` | После завершения | `{MAIN_BRANCH}` |
-| **Фаза 5** | `phase-5-tdd-planning` | После roadmaps | `{MAIN_BRANCH}` |
-| **Фаза 6** | `phase-6-implementation` | После всех фич | `{MAIN_BRANCH}` |
-| └─ Feature | `feature-{id}` | После score ≥ 9 | `phase-6-implementation` |
-| **Фаза 7** | `phase-7-system-verification` | После score ≥ 9 | `{MAIN_BRANCH}` |
-| **Фаза 8** | `phase-8-documentation` | После завершения | `{MAIN_BRANCH}` |
-| **Фаза 9** | `phase-9-release` | Финальный коммит | `{MAIN_BRANCH}` |
-
-**Примеры команд:**
-```bash
-# Создание PR
-gh pr create --base {MAIN_BRANCH} --head phase-1-project-profile --title "Phase 1: Project Profile"
-
-# Мёрж PR
-gh pr merge --merge --delete-branch
-```
-
----
-
-## ПРАВИЛА ПАРАЛЛЕЛИЗАЦИИ
-
-- Фичи МОГУТ разрабатываться параллельно
-- Аналитика, архитектура и планирование — строго последовательно
-- Общие контракты блокируют параллельность
-- Для параллельного запуска отправь ОДНО сообщение с НЕСКОЛЬКИМИ Task вызовами
-
----
-
-## ЗАПРЕЩЁННЫЕ ДЕЙСТВИЯ
-
-- ❌ Пропуск стадий
-- ❌ Обход quality gates
-- ❌ Изменение артефактов не своим агентом
-- ❌ Использование глобальных / дефолтных профилей
-- ❌ Частичная или условная приёмка
-- ❌ Симуляция выполнения агента — ВСЕГДА используй Task tool
-
----
-
-## УСЛОВИЕ СТАРТА
-
-Когда пользователь вызывает `/product-creator`:
-
-1. **Собери контекст:**
-   - Цель проекта
-   - Краткое описание
-   - Платформы
-   - Ожидания (качество, TDD, архитектура)
-   - Ограничения
-
-2. **Начни Фазу 0** — приём намерения
-
-3. **Следуй пайплайну** — запускай агентов через Task tool в указанном порядке
-
-4. **Запрашивай одобрение** на контрольных точках (PROJECT_PROFILE_HUMAN, PIPELINE_PROMPT)
-
----
-
-## Выходные артефакты
-
-После успешного выполнения пайплайна будет создана следующая структура:
-
-```
-docs/
-├── project/                    # Артефакты уровня проекта
-│   ├── PROJECT_PROFILE.md
-│   ├── PROJECT_PROFILE_HUMAN.md
-│   ├── PIPELINE_PROMPT.md
-│   ├── ANALYSIS.md
-│   ├── TECH_REQUIREMENTS.md
-│   ├── SCOPE.md
-│   ├── ARCHITECTURE_OVERVIEW.md
-│   ├── WORK_BREAKDOWN.md
-│   ├── FEATURES_INDEX.md
-│   ├── SYSTEM_VERIFICATION.md
-│   ├── README.md
-│   ├── ARCHITECTURE.md
-│   ├── USAGE.md
-│   ├── DEPLOY.md
-│   └── RELEASE_NOTES.md
-│
-├── roadmaps/                   # TDD roadmaps для каждой фичи
-│   ├── ROADMAP_<FEATURE>_01.md
-│   ├── ROADMAP_<FEATURE>_02.md
-│   └── ...
-│
-└── develop/                    # Артефакты разработки каждой фичи
-    ├── <FEATURE_01>/
-    │   ├── IMPLEMENTATION_REPORT_<FEATURE_01>.md
-    │   ├── TEST_REPORT_<FEATURE_01>.md
-    │   ├── CODE_REVIEW_<FEATURE_01>.md
-    │   └── FEATURE_VERIFICATION_<FEATURE_01>.md
-    └── ...
-```
-
-**Реализация (код):**
-- Исходный код (backend, mobile, web)
-- Тесты (unit, integration, e2e)

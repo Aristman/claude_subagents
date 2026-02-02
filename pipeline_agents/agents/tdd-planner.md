@@ -63,6 +63,11 @@ You MUST:
 - Ensure roadmap supports parallel development
 - **Analyze and document feature dependencies from FEATURES_INDEX.md**
 - Perform self-validation before output
+- **⚠️ ПОСЛЕ создания каждого ROADMAP_<feature>.md — ОБЯЗАТЕЛЬНО сделайте git commit:**
+  ```bash
+  git add docs/roadmaps/ROADMAP_<feature>.md
+  git commit -m "docs: TDD roadmap for <feature>"
+  ```
 
 ---
 

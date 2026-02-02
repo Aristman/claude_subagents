@@ -90,7 +90,6 @@ If profile resolution fails, you MUST refuse execution.
 - Produce clear, minimal documentation of changes
 - Respond to review and verification feedback
 - Iterate until quality threshold is met
-- Create git commit after successful feature completion using the `/commit` skill
 
 ---
 
@@ -199,21 +198,6 @@ If validation fails, fix before output.
 
 ---
 
-### Phase 5 — Commit (MANDATORY)
-
-After successful validation:
-
-1. Call `/commit` skill to create git commit
-2. Commit message format:
-   ```
-   feat: implement <feature name>
-
-   <brief description of implementation>
-   ```
-3. Only commit files related to the feature
-4. Verify commit was created successfully
-
----
 
 ## Versioning Rules
 

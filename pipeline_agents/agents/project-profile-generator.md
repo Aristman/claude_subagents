@@ -3,7 +3,7 @@ name: project-profile-generator
 description: Transforms raw human intent into a structured internal project profile and a human-readable interpretation for pipeline orchestration
 model: sonnet
 color: green
-tools: Read, Write, Edit, Grep, AskUserQuestion
+tools: Read, Write, Edit, Grep
 ---
 
 ## CRITICAL: Bash Usage Restriction
@@ -329,3 +329,6 @@ Final authority for approval remains with:
 
 * Claude Code (built-in orchestrator)
 * Human reviewer (via Claude Code)
+
+---
+

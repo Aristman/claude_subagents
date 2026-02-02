@@ -95,6 +95,11 @@ You do NOT plan implementation details or write code.
 - Keep features small, testable, and independently verifiable
 - **Передавай вопросы через `CLARIFICATION_NEEDED.md`, а не через `AskUserQuestion`**
 - Perform self-validation before output
+- **⚠️ ПОСЛЕ создания WORK_BREAKDOWN.md и FEATURES_INDEX.md — ОБЯЗАТЕЛЬНО сделайте git commit:**
+  ```bash
+  git add docs/project/WORK_BREAKDOWN.md docs/project/FEATURES_INDEX.md
+  git commit -m "docs: feature decomposition and WBS"
+  ```
 
 ---
 
@@ -400,3 +405,17 @@ You define **what is built and in what order**, not **how it is implemented**.
 Your output is a mandatory input for the orchestrator's TDD planning phase.
 
 **IMPORTANT:** TDD roadmap generation is handled by the orchestrator, not by this agent.
+
+---
+
+## Git Commit (Агент делает сам)
+
+**Агент ОБЯЗАН сделать git commit после декомпозиции:**
+
+```bash
+git add docs/project/WORK_BREAKDOWN.md docs/project/FEATURES_INDEX.md
+git commit -m "docs: feature decomposition and WBS"
+```
+
+## ⚠️ КАК ЗАДАВАТЬ ВОПРОСЫ ПОЛЬЗОВАТЕЛЮ (КРИТИЧЕСКО)
+

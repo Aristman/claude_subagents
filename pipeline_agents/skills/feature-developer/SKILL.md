@@ -22,7 +22,7 @@ description: Запускает разработку одной фичи в су
 - Разрабатывает фичу в соответствии с TDD
 - Интегрируете фичу с существующим кодом
 - Проводите интеграционное тестирование
-- Создаёте Pull Request в основную ветку
+- Работаете в текущей ветке, делаете коммиты
 
 **ВЫ ПОЛНОСТЬЮ АВТОНОМНЫ.** Вы не зависите от других промптов, артефактов или агентов.
 
@@ -52,21 +52,21 @@ docs/
 
 ---
 
+
 ## GIT WORKFLOW (ОБЯЗАТЕЛЬНЫЙ)
 
 **Основная ветка разработки:** `{MAIN_BRANCH}` — определяется автоматически или задаётся пользователем
 
-### Структура веток для фичи
+### Структура веток
 
 ```
 {MAIN_BRANCH} (например, main, develop, SW-DEV)
     ↑
-    │ Pull Request
+    │ Коммиты от оркестратора после успешной верификации (score ≥ 9)
     │
-feature-<FEATURE_ID> (ветка разработки фичи)
 ```
 
-### Алгоритм работы с ветками
+### Алгоритм работы
 
 **В начале разработки фичи:**
 1. Определи основную ветку `{MAIN_BRANCH}`:
@@ -79,63 +79,8 @@ feature-<FEATURE_ID> (ветка разработки фичи)
 git branch --show-current
 ```
 
-3. Создай ветку для фичи от `{MAIN_BRANCH}`:
-```bash
-git checkout {MAIN_BRANCH}
-git checkout -b feature-<FEATURE_ID>
-```
+**Все работы ведутся в текущей ветке ({MAIN_BRANCH}).**
 
-**После завершения разработки:**
-1. Запушь ветку:
-```bash
-git push -u origin feature-<FEATURE_ID>
-```
-
-2. Создай Pull Request:
-```bash
-gh pr create --base {MAIN_BRANCH} --head feature-<FEATURE_ID} \
-  --title "Feature: <FEATURE_NAME>" \
-  --body "Реализация фичи: <краткое описание>"
-```
-
-3. После проверки — смёржь PR:
-```bash
-gh pr merge --merge --delete-branch
-```
-
----
-
-## Входные данные
-
-### От пользователя:
-- **Описание фичи** (что нужно сделать)
-- **Контекст проекта** (язык, платформа, основные технологии)
-- **Основная ветка** (опционально — main, develop и т.д.)
-
-### Вы сами находите:
-- Структуру проекта (анализ файловой системы)
-- Существующую архитектуру (reverse engineering)
-- Coding conventions (из кода)
-- Зависимости и модули
-
----
-
-## СТАДИИ РАЗРАБОТКИ ФИЧИ
-
-### Стадия 0: Инициализация Git
-
-**Действия:**
-1. Определить основную ветку `{MAIN_BRANCH}`
-2. Создать ветку `feature-<FEATURE_ID>` от `{MAIN_BRANCH}`
-3. Переключиться на ветку фичи
-
-**Git операции:**
-```bash
-git checkout {MAIN_BRANCH}
-git checkout -b feature-<FEATURE_ID}
-```
-
----
 
 ### Стадия 1: Анализ проекта
 **Задача:** Понять, как устроен проект
@@ -149,10 +94,6 @@ git checkout -b feature-<FEATURE_ID}
 
 **Выходной артефакт:** `docs/develop/<FEATURE_ID>/PROJECT_ANALYSIS.md`
 
-**После завершения — коммит:**
-```
-Skill(skill="commit", args="docs/develop/<FEATURE_ID>/PROJECT_ANALYSIS.md")
-```
 
 ---
 
@@ -161,16 +102,40 @@ Skill(skill="commit", args="docs/develop/<FEATURE_ID>/PROJECT_ANALYSIS.md")
 
 **Действия:**
 1. Определить границы фичи (что входит, что нет)
-2. Найти подходящие паттерны в существующем коде
-3. Определить точки интеграции
-4. Разбить на задачи (backend, frontend, tests)
-
 **Выходной артефакт:** `docs/develop/<FEATURE_ID>/FEATURE_DECOMPOSITION.md`
 
-**После завершения — коммит:**
+---
+
+## ⚠️ ОБРАБОТКА ВОПРОСОВ ОТ АГЕНТОВ
+
+Если какой-либо агент создал файл `CLARIFICATION_NEEDED.md`:
+
 ```
-Skill(skill="commit", args="docs/develop/<FEATURE_ID>/FEATURE_DECOMPOSITION.md")
+ЦИКЛ while (true):
+  Запускаем агента
+
+  ПРОВЕРКА: существует ли файл CLARIFICATION_NEEDED.md?
+
+  Если ДА:
+    → Читаешь CLARIFICATION_NEEDED.md
+    → Задаешь вопросы пользователю через AskUserQuestion
+    → Получаешь ответы
+    → Создаешь USER_ANSWERS.md с ответами
+    → Удаляешь CLARIFICATION_NEEDED.md
+    → Перезапускаешь агента с контекстом ответов
+
+  Если НЕТ:
+    → Артефакт создан
+    → Выход из цикла
 ```
+
+**Жизненный цикл файлов вопросов:**
+1. Агент создает `CLARIFICATION_NEEDED.md` с вопросами
+2. Оркестратор читает файл, задает вопросы пользователю
+3. Оркестратор создает `USER_ANSWERS.md` с ответами
+4. Оркестратор удаляет `CLARIFICATION_NEEDED.md`
+5. Агент перезапускается с ответами
+6. После завершения агента — оркестратор удаляет `USER_ANSWERS.md`
 
 ---
 
@@ -179,17 +144,6 @@ Skill(skill="commit", args="docs/develop/<FEATURE_ID>/FEATURE_DECOMPOSITION.md")
 
 **Действия:**
 1. Определить типы тестов (unit, integration, e2e)
-2. Спланировать тестовые сценарии
-3. Определить acceptance criteria
-4. Определить mock/stub стратегии
-
-**Выходной артефакт:** `docs/develop/<FEATURE_ID>/TDD_PLAN.md`
-
-**После завершения — коммит:**
-```
-Skill(skill="commit", args="docs/develop/<FEATURE_ID>/TDD_PLAN.md")
-```
-
 ---
 
 ### Стадия 4: Реализация
@@ -263,7 +217,7 @@ Skill(skill="commit", args="docs/develop/<FEATURE_ID>/TDD_PLAN.md")
         score ≥ 9                      score < 9
               │                               │
               ↓                               ↓
-      Стадия 5 → PR                  Повтор цикла (доработка)
+      ОРКЕСТРАТОР делает коммит                  Повтор цикла (доработка)
 ```
 
 ---
@@ -406,14 +360,65 @@ result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
 
 ### Проверка score и решение
 
+**⚠️ ЯВНЫЙ ПСЕВДОКОД обработки score:**
+
+```python
+# После завершения feature-verifier
+verification = read_file("docs/develop/{FEATURE_ID}/FEATURE_VERIFICATION.md")
+score = extract_score(verification)
+
+if score >= 9:
+    # Успех — оркестратор делает коммит
+    bash_command(f"""
+        git add docs/develop/{FEATURE_ID}/
+        git commit -m "feat: {FEATURE_NAME}
+
+        - Implementation: developer-agent
+        - Test: test-engineer
+        - Review: code-reviewer
+        - Verification: feature-verifier (score ≥ 9)
+        "
+    """)
+    print(f"✅ {FEATURE_ID}: коммит создан (score={score})")
+else:
+    # ⚠️ КРИТИЧЕСКО: score < 9 — ПЕРЕЗАПУСК developer-agent с доработкой
+    # Читаем задачи из FEATURE_VERIFICATION.md, CODE_REVIEW.md, TEST_REPORT.md
+    verification = read_file(f"docs/develop/{FEATURE_ID}/FEATURE_VERIFICATION.md")
+    review = read_file(f"docs/develop/{FEATURE_ID}/CODE_REVIEW.md")
+    tests = read_file(f"docs/develop/{FEATURE_ID}/TEST_REPORT.md")
+
+    # Перезапускаем developer-agent с контекстом доработки
+    task = Task(
+        subagent_type="developer-agent",
+        prompt=f"""
+        ПЕРЕРАБОТКА ФИЧИ {FEATURE_ID} (score был {score}/10)
+
+        ЗАДАЧИ ИЗ ВЕРИФИКАЦИИ:
+        {verification}
+
+        ЗАМЕЧАНИЯ ИЗ REVIEW:
+        {review}
+
+        ПРОБЛЕМЫ ИЗ ТЕСТОВ:
+        {tests}
+
+        Выполни доработку. Обнови IMPLEMENTATION_REPORT.md
+        """
+    )
+    TaskOutput(task_id=task["id"], block=True, timeout=600000)
+
+    # Повторяем test + review + verifier для этой фичи
+    # (контекст: доработка готова)
+```
+
 **Если score ≥ 9:**
+- Оркестратор делает коммит (см. псевдокод выше)
 - Переход к Стадии 5 (Интеграционное тестирование)
 
 **Если score < 9:**
-- Читаем `FEATURE_VERIFICATION.md` для списка задач
-- Читаем `CODE_REVIEW.md` для замечаний
-- Читаем `TEST_REPORT.md` для проблем
-- Повторяем цикл с Шага 1 (developer-agent с контекстом доработки)
+- Перезапуск developer-agent с контекстом доработки
+- Повтор полного цикла: test → review → verify
+- Повторять пока score < 9
 
 **Промпт для доработки:**
 ```
@@ -434,11 +439,20 @@ result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
 Обнови IMPLEMENTATION_REPORT.md с описанием изменений.
 ```
 
+
 ---
 
-**Коммит после успешной реализации (score ≥ 9):**
-```
-Skill(skill="commit", args="docs/develop/<FEATURE_ID> <исходные файлы>")
+**Оркестратор делает коммит после успешной верификации (score ≥ 9):**
+
+```bash
+git add docs/develop/<FEATURE_ID>/
+git commit -m "feat: <FEATURE_NAME>
+
+- Implementation: developer-agent
+- Test: test-engineer
+- Review: code-reviewer
+- Verification: feature-verifier (score ≥ 9)
+"
 ```
 
 ---
@@ -453,11 +467,6 @@ Skill(skill="commit", args="docs/develop/<FEATURE_ID> <исходные файл
 4. Убедиться в стабильности
 
 **Выходной артефакт:** `docs/develop/<FEATURE_ID>/INTEGRATION_TEST_REPORT.md`
-
-**Коммит:**
-```
-Skill(skill="commit", args="docs/develop/<FEATURE_ID>/INTEGRATION_TEST_REPORT.md")
-```
 
 ---
 
@@ -476,24 +485,11 @@ Skill(skill="commit", args="docs/develop/<FEATURE_ID>/INTEGRATION_TEST_REPORT.md
 **Выходной артефакт:** `docs/develop/<FEATURE_ID>/FEATURE_VERIFICATION.md`
 
 **Если score ≥ 9:**
-1. Финальный коммит:
-```
-Skill(skill="commit", args="docs/develop/<FEATURE_ID>")
-```
-2. Создание Pull Request:
-```bash
-git push -u origin feature-<FEATURE_ID>
-gh pr create --base {MAIN_BRANCH} --head feature-<FEATURE_ID> \
-  --title "Feature: <FEATURE_NAME>" \
-  --body "Реализация фичи завершена. Score: {score}/10"
-```
-3. Переключение на основную ветку:
-```bash
-git checkout {MAIN_BRANCH}
-```
+- Оркестратор делает финальный коммит (см. выше)
+- Фича готова к интеграции
 
 **Если score < 9:**
-- Возврат к Стадии 4 для доработки
+- Возврат к разработке (повтор цикла с developer-agent)
 
 ---
 
@@ -525,8 +521,8 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
     ДА          НЕТ
      │           │
      ▼           ▼
-  Стадия 5    developer-agent (повтор с контекстом доработки)
-                  │
+  Оркестратор  developer-agent (повтор с контекстом доработки)
+  делает коммит     │
                   ▼ (цикл повторяется)
 ```
 
@@ -652,11 +648,33 @@ result_verify = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000
 
 ---
 
-## Commit pattern
 
-Для коммитов используй Skill tool:
-```
-Skill(skill="commit", args="<файлы>")
+## Git Workflow (Коммиты делает оркестратор)
+
+**Ответственность за коммиты:**
+
+| Кто | Действие | Коммит? |
+|-----|----------|---------|
+| developer-agent | Реализует фичу | ❌ Нет |
+| test-engineer | Тестирует фичу | ❌ Нет |
+| code-reviewer | Делает ревью | ❌ Нет |
+| feature-verifier | Верифицирует | ❌ Нет |
+| **Оркестратор (feature-developer)** | **Делает коммит после score ≥ 9** | ✅ **Да** |
+
+**Когда делать коммит:**
+
+Оркестратор делает коммит **ПОСЛЕ успешной верификации** (когда feature-verifier даёт score ≥ 9):
+
+```bash
+# После успешной верификации фичи
+git add docs/develop/<FEATURE_ID>/
+git commit -m "feat: <FEATURE_NAME>
+
+- Implementation: developer-agent
+- Test: test-engineer
+- Review: code-reviewer
+- Verification: feature-verifier (score ≥ 9)
+"
 ```
 
 **Типы коммитов:**
@@ -719,8 +737,13 @@ Skill(skill="commit", args="<файлы>")
 - ❌ Создавать артефакты вне `docs/develop/<FEATURE_ID>/`
 - ❌ **КРИТИЧЕСКО: Создавать только IMPLEMENTATION_REPORT и пропускать остальные!**
   - КАЖДАЯ фича ДОЛЖНА иметь ВСЕ 4 артефакта
+  - "Усталость" оркестатора — НЕ оправдание
 - ❌ **КРИТИЧЕСКО: Запускать feature-verifier ДО test-engineer и code-reviewer!**
+  - feature-verifier зависит от ОБИХ: TEST_REPORT.md И CODE_REVIEW.md
+- ❌ **КРИТИЧЕСКО: Запускать test-engineer или code-reviewer ДО developer-agent!**
+  - Они требуют IMPLEMENTATION_REPORT.md от developer
 - ❌ **КРИТИЧЕСКО: Запускать всех агентов параллельно без ожидания завершения!**
+- ❌ **КРИТИЧЕСКО: Запускать все 4 агента в одном сообщении** (developer/test/review/verify)
 - ❌ **Завершать разработку без Build & Run verification**
 
 ### Ты МОЖЕШЬ:
@@ -742,9 +765,9 @@ Skill(skill="commit", args="<файлы>")
    - Контекст проекта
    - Основная ветка (опционально)
 
-2. **Инициализируйте Git:**
+2. **Проверьте Git:**
    - Определите `{MAIN_BRANCH}`
-   - Создайте ветку `feature-<FEATURE_ID>`
+   - Все работы ведутся в текущей ветке
 
 3. **Запустите разработку через соответствующих агентов:**
    - Стадия 1: Анализ проекта
@@ -754,7 +777,6 @@ Skill(skill="commit", args="<файлы>")
    - Стадия 5: Интеграционное тестирование
    - Стадия 6: Финальная верификация
 
-4. **Создайте Pull Request после успешной верификации (score ≥ 9)**
 
 ---
 
@@ -787,5 +809,5 @@ Skill(skill="commit", args="<файлы>")
 После успешного прохождения всех стадий и получения score ≥ 9:
 1. Все артефакты сохранены в `docs/develop/<FEATURE_ID>/`
 2. Код реализован и протестирован
-3. Pull Request создан и готов к_review
-4. Ветка переключена на `{MAIN_BRANCH}`
+3. Коммит сделан в ветку `{MAIN_BRANCH}`
+4. Фича готова к использованию

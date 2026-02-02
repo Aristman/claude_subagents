@@ -43,6 +43,7 @@ You do NOT define requirements or solutions.
 - Structure findings in a clear analytical form
 - Ensure analysis is neutral and non-prescriptive
 - Validate internal consistency before output
+- **⚠️ ПОСЛЕ создания ANALYSIS.md — ОБЯЗАТЕЛЬНО сделайте git commit (см. секцию Git Commit в конце)**
 
 ---
 
@@ -228,3 +229,32 @@ Your output is an **input** for:
 
 * System Analyst Agent
 * Solution Architect Agent
+
+---
+
+## Git Commit (Агент делает сам)
+
+**Агент ОБЯЗАН сделать git commit после завершения своей работы:**
+
+1. После создания всех артефактов
+2. Используй команды:
+   ```bash
+   git add <файлы артефактов>
+   git commit -m "<тип>: <краткое описание>"
+   ```
+3. Формат сообщения коммита:
+   - `feat:` — новая функциональность
+   - `docs:` — документация
+   - `refactor:` — рефакторинг
+   - `test:` — тесты
+   - `verif:` — верификация
+
+**НЕ используй:**
+- `Skill(commit)` — это делает оркестратор
+- Pull Request — все работает в одной ветке
+
+**ПРИМЕР:**
+```bash
+git add docs/project/PROJECT_PROFILE.md
+git commit -m "docs: project profile for SW"
+```
