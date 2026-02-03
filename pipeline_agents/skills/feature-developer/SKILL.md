@@ -365,7 +365,25 @@ verification = read_file("docs/develop/{TASK_ID}/FEATURE_VERIFICATION.md")
 score = extract_score(verification)
 
 if score >= 9:
-    # Успех — оркестратор делает коммит
+    # ─────────────────────────────────────────────────────────────────
+    # ШАГ 1: Отметить задачу в roadmap как выполненную
+    # ─────────────────────────────────────────────────────────────────
+    roadmap_path = find_roadmap_for_task(TASK_ID)
+
+    if roadmap_path:
+        roadmap = read_file(roadmap_path)
+        updated_roadmap = mark_task_completed(roadmap, TASK_ID, score)
+        write_file(roadmap_path, updated_roadmap)
+
+        bash_command(f"""
+            git add {roadmap_path}
+            git commit -m "docs: mark task {TASK_ID} as completed (score {score}/10)"
+        """)
+        print(f"✅ Roadmap обновлён: задача {TASK_ID} отмечена как выполненная")
+
+    # ─────────────────────────────────────────────────────────────────
+    # ШАГ 2: Успех — оркестратор делает коммит артефактов
+    # ─────────────────────────────────────────────────────────────────
     bash_command(f"""
         git add docs/develop/{TASK_ID}/
         git commit -m "feat: {TASK_NAME}
@@ -548,6 +566,8 @@ result_verify = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000
 | feature-verifier | Верифицирует | ❌ Нет |
 | **Оркестратор (feature-developer)** | **Делает коммит после score ≥ 9** | ✅ **Да** |
 
+**⚠️ ОБЯЗАТЕЛЬНО:** Оркестратор отмечает выполненную задачу в roadmap после успешной верификации (score ≥ 9)
+
 **Когда делать коммит:**
 
 Оркестратор делает коммит **ПОСЛЕ успешной верификации** (когда feature-verifier даёт score ≥ 9):
@@ -562,6 +582,203 @@ git commit -m "feat: <TASK_NAME>
 - Review: code-reviewer
 - Verification: feature-verifier (score ≥ 9)
 "
+```
+
+---
+
+## ⚠️ ОТМЕТКА ВЫПОЛНЕННОЙ ЗАДАЧИ В РОАДМАПЕ (ОБЯЗАТЕЛЬНО)
+
+### Правило отметки выполненной задачи
+
+**ПОСЛЕ успешной верификации задачи (score ≥ 9) оркестратор ОБЯЗАН:**
+
+1. **Найти roadmap задачи:**
+   - Если задача часть фазы/фичи → `docs/roadmaps/ROADMAP_TASKS_<feature>.md`
+   - Если отдельная задача → `docs/roadmaps/ROADMAP_<task_id>.md` или спросить у пользователя
+
+2. **Отметить задачу как выполненную в roadmap:**
+   - Прочитать файл roadmap
+   - Найти секцию задачи `Task T-XXX` или по названию
+   - Добавить/обновить статус: `**Status:** ✅ COMPLETED`
+   - Добавить дату завершения: `**Completed:** YYYY-MM-DD`
+   - Добавить финальный score: `**Final Score:** X/10`
+
+3. **Сделать коммит с обновлённым roadmap:**
+   ```bash
+   git add docs/roadmaps/ROADMAP_TASKS_<feature>.md
+   git commit -m "docs: mark task {task_id} as completed (score {score}/10)"
+   ```
+
+### Формат отметки задачи в roadmap
+
+```markdown
+### Task T-001: <Task Name>
+
+**Description:** [описание]
+**Estimated Time:** 2-4 hours
+**Dependencies:** None
+**Status:** ✅ COMPLETED
+**Completed:** 2025-01-15
+**Final Score:** 9/10
+
+**Scope:**
+- **In scope:** [что входит]
+- **Out scope:** [что НЕ входит]
+
+[... остальное содержимое задачи ...]
+```
+
+### Псевдокод отметки задачи после верификации
+
+```python
+# После завершения feature-verifier
+verification = read_file("docs/develop/{TASK_ID}/FEATURE_VERIFICATION.md")
+score = extract_score(verification)
+
+if score >= 9:
+    # ─────────────────────────────────────────────────────────────────
+    # ШАГ 1: Отметить задачу в roadmap как выполненную
+    # ─────────────────────────────────────────────────────────────────
+
+    # Найти путь к roadmap
+    roadmap_path = find_roadmap_for_task(TASK_ID)
+
+    if roadmap_path:
+        # Читаем roadmap
+        roadmap = read_file(roadmap_path)
+
+        # Добавляем статус задачи
+        updated_roadmap = mark_task_completed(roadmap, TASK_ID, score)
+
+        # Записываем обновлённый roadmap
+        write_file(roadmap_path, updated_roadmap)
+
+        # Коммит с обновлённым roadmap
+        bash_command(f"""
+            git add {roadmap_path}
+            git commit -m "docs: mark task {TASK_ID} as completed (score {score}/10)"
+        """)
+        print(f"✅ Roadmap обновлён: задача {TASK_ID} отмечена как выполненная")
+    else:
+        print(f"⚠️ Roadmap не найден для задачи {TASK_ID}")
+
+    # ─────────────────────────────────────────────────────────────────
+    # ШАГ 2: Коммит артефактов разработки задачи
+    # ─────────────────────────────────────────────────────────────────
+    bash_command(f"""
+        git add docs/develop/{TASK_ID}/
+        git commit -m "feat: {TASK_NAME}
+
+        - Implementation: developer-agent
+        - Test: test-engineer
+        - Review: code-reviewer
+        - Verification: feature-verifier (score ≥ 9)
+        "
+    """)
+    print(f"✅ {TASK_ID}: коммит создан (score={score})")
+else:
+    # score < 9 — перезапуск developer-agent с доработкой
+    # ...
+```
+
+### Функция поиска roadmap для задачи
+
+```python
+def find_roadmap_for_task(task_id):
+    """Находит путь к roadmap для задачи"""
+
+    # 1. Проверяем roadmaps для фич
+    roadmaps = glob("docs/roadmaps/ROADMAP_TASKS_*.md")
+
+    for roadmap_path in roadmaps:
+        content = read_file(roadmap_path)
+        if task_id in content or TASK_ID.lower() in content.lower():
+            return roadmap_path
+
+    # 2. Проверяем roadmaps для отдельных задач
+    task_roadmap = f"docs/roadmaps/ROADMAP_{task_id}.md"
+    if exists(task_roadmap):
+        return task_roadmap
+
+    # 3. Не найден — вернуть None
+    return None
+```
+
+### Функция отметки задачи в roadmap
+
+```python
+def mark_task_completed(roadmap_content, task_id, score):
+    """Добавляет статус выполненной задачи в roadmap"""
+    from datetime import datetime
+
+    completed_date = datetime.now().strftime("%Y-%m-%d")
+
+    # Находим секцию задачи
+    task_section = find_task_section(roadmap_content, task_id)
+
+    if task_section is None:
+        # Секция не найдена — возвращаем без изменений
+        return roadmap_content
+
+    # Если статус уже есть — обновляем
+    if "**Status:**" in task_section:
+        # Обновляем существующий статус
+        updated = task_section.replace(
+            "**Status:** ⏳ IN PROGRESS",
+            f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10"
+        )
+        updated = updated.replace(
+            "**Status:** ❌ FAILED",
+            f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10"
+        )
+    else:
+        # Добавляем новый статус после заголовка задачи
+        # Ищем конец строки с описанием или Dependencies
+        if "**Description:**" in task_section:
+            updated = task_section.replace(
+                f"**Description:**",
+                f"**Description:**"
+            )
+            # Добавляем статус после первой строки описания
+            lines = updated.split("\n")
+            for i, line in enumerate(lines):
+                if line.startswith("**Description:**") or line.startswith("**Estimated Time:**") or line.startswith("**Dependencies:**"):
+                    # Вставляем статус после этой строки
+                    lines.insert(i + 1, f"**Status:** ✅ COMPLETED")
+                    lines.insert(i + 2, f"**Completed:** {completed_date}")
+                    lines.insert(i + 3, f"**Final Score:** {score}/10")
+                    break
+            updated = "\n".join(lines)
+        else:
+            # Добавляем статус в начало секции
+            updated = f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10\n\n" + task_section
+
+    # Заменяем в roadmap
+    return roadmap_content.replace(task_section, updated)
+
+
+def find_task_section(roadmap_content, task_id):
+    """Находит секцию задачи в roadmap"""
+
+    # Ищем по ID задачи
+    patterns = [
+        f"### Task {task_id}:",
+        f"## Task {task_id}:",
+        f"Task {task_id}:",
+        f"task_id}",
+    ]
+
+    for pattern in patterns:
+        if pattern in roadmap_content:
+            # Находим начало и конец секции
+            start = roadmap_content.find(pattern)
+            # Находим следующую секцию (следующий ### или ##)
+            next_hash = roadmap_content.find("\n##", start + len(pattern))
+            if next_hash == -1:
+                next_hash = len(roadmap_content)
+            return roadmap_content[start:next_hash]
+
+    return None
 ```
 
 ---

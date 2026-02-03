@@ -108,7 +108,6 @@ docs/
 │   ├── FEATURES_INDEX.md         # Декомпозиция на ФИЧИ
 │   ├── TASKS_INDEX.md            # Индекс всех задач
 │   ├── SYSTEM_VERIFICATION.md
-│   ├── README.md
 │   ├── ARCHITECTURE.md
 │   ├── USAGE.md
 │   ├── DEPLOY.md
@@ -125,9 +124,12 @@ docs/
             ├── TEST_REPORT_<TASK>.md
             ├── CODE_REVIEW_<TASK>.md
             └── FEATURE_VERIFICATION_<TASK>.md
+
+README.md                 # Главный файл проекта (в корне!)
 ```
 
 **Правила:**
+- **README.md → в корне проекта** (главный файл документации)
 - Все проектные артефакты → `docs/project/`
 - Roadmaps задач → `docs/roadmaps/ROADMAP_TASKS_<feature>.md`
 - Артефакты разработки задачи → `docs/develop/<FEATURE>/<TASK>/`
@@ -822,6 +824,19 @@ for feature in features:
             score = extract_score(result)
 
             if score >= 9:
+                # ─────────────────────────────────────────────────────────────────
+                # ШАГ: Отметить задачу в roadmap как выполненную
+                # ─────────────────────────────────────────────────────────────────
+                roadmap_path = f"docs/roadmaps/ROADMAP_TASKS_{feature_id}.md"
+                roadmap = read_file(roadmap_path)
+                updated_roadmap = mark_task_completed(roadmap, task['id'], score)
+                write_file(roadmap_path, updated_roadmap)
+
+                bash_command(f"""
+                    git add {roadmap_path}
+                    git commit -m "docs: mark task {task['id']} as completed (score {score}/10)"
+                """)
+
                 # Оркестратор делает коммит задачи
                 bash_command(f"""
                     git add docs/develop/{feature_id}/{task['id']}/
@@ -841,6 +856,20 @@ for feature in features:
         git merge feature/{feature_id}
         git branch -d feature/{feature_id}
     """)
+
+    # ─────────────────────────────────────────────────────────────────
+    # ШАГ: Отметить фичу в FEATURES_INDEX.md как выполненную
+    # ─────────────────────────────────────────────────────────────────
+    features_index_path = "docs/project/FEATURES_INDEX.md"
+    features_index = read_file(features_index_path)
+    updated_index = mark_feature_completed(features_index, feature_id)
+    write_file(features_index_path, updated_index)
+
+    bash_command(f"""
+        git add {features_index_path}
+        git commit -m "docs: mark feature {feature_id} as completed"
+    """)
+
     print(f"✅ Фича {feature_id} завершена и смержена")
 
     # Переходим к следующей фиче
@@ -854,6 +883,213 @@ for feature in features:
 4. **Каждая фича = merge в {MAIN_BRANCH}** после всех задач
 5. **Фичи выполняются ПОСЛЕДОВАТЕЛЬНО** (одна за другой)
 6. **НЕ использовать Skill(commit)** — оркестратор делает напрямую через `git commit`
+
+---
+
+## ⚠️ ОТМЕТКА ВЫПОЛНЕННЫХ ЗАДАЧ И ФИЧ В РОАДМАПАХ (ОБЯЗАТЕЛЬНО)
+
+### Правило отметки выполненных задач
+
+**ПОСЛЕ успешной верификации каждой задачи (score ≥ 9) оркестратор ОБЯЗАН:**
+
+1. **Отметить задачу как выполненную в roadmap:**
+   - Прочитать `docs/roadmaps/ROADMAP_TASKS_<feature>.md`
+   - Найти секцию задачи `Task T-XXX`
+   - Добавить/обновить статус: `**Status:** ✅ COMPLETED`
+   - Добавить дату завершения: `**Completed:** YYYY-MM-DD`
+   - Добавить финальный score: `**Final Score:** X/10`
+
+2. **Сделать коммит с обновлённым roadmap:**
+   ```bash
+   git add docs/roadmaps/ROADMAP_TASKS_<feature>.md
+   git commit -m "docs: mark task {task_id} as completed (score {score}/10)"
+   ```
+
+### Формат отметки задачи в roadmap
+
+```markdown
+### Task T-001: <Task Name>
+
+**Description:** [описание]
+**Estimated Time:** 2-4 hours
+**Dependencies:** None
+**Status:** ✅ COMPLETED
+**Completed:** 2025-01-15
+**Final Score:** 9/10
+
+**Scope:**
+- **In scope:** [что входит]
+- **Out scope:** [что НЕ входит]
+
+[... остальное содержимое задачи ...]
+```
+
+### Правило отметки выполненной фичи
+
+**ПОСЛЕ успешного merge фичи в {MAIN_BRANCH} оркестратор ОБЯЗАН:**
+
+1. **Отметить фичу как выполненную в FEATURES_INDEX.md:**
+   - Прочитать `docs/project/FEATURES_INDEX.md`
+   - Найти секцию фичи `Feature F-XXX`
+   - Добавить/обновить статус: `**Status:** ✅ COMPLETED`
+   - Добавить дату завершения: `**Completed:** YYYY-MM-DD`
+
+2. **Сделать финальный коммит:**
+   ```bash
+   git add docs/project/FEATURES_INDEX.md
+   git commit -m "docs: mark feature {feature_id} as completed"
+   ```
+
+### Формат отметки фичи в FEATURES_INDEX.md
+
+```markdown
+## Feature F-001
+
+- **Name:** <Feature name>
+- **Description:** <Brief description>
+- **Domain:** <Domain ID>
+- **Related Requirements:** <FR-IDs>
+- **Dependencies:** <List or None>
+- **Status:** ✅ COMPLETED
+- **Completed:** 2025-01-15
+- **Notes:** <Additional notes>
+```
+
+### Псевдокод отметки задачи после верификации
+
+```python
+# ─────────────────────────────────────────────────────────────────
+# ШАГ 3.3: feature-verifier (ПОСЛЕДОВАТЕЛЬНО для каждой задачи)
+# ─────────────────────────────────────────────────────────────────
+for task in level_tasks:
+    task_verify = Task(subagent_type="feature-verifier", prompt=f"Верифицируй {task['id']}")
+    result = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000)
+
+    # Проверяем score
+    score = extract_score(result)
+
+    if score >= 9:
+        # ─────────────────────────────────────────────────────────────────
+        # ШАГ 3.4: Отметить задачу в roadmap как выполненную
+        # ─────────────────────────────────────────────────────────────────
+        roadmap_path = f"docs/roadmaps/ROADMAP_TASKS_{feature_id}.md"
+        roadmap = read_file(roadmap_path)
+
+        # Добавляем статус задачи
+        updated_roadmap = mark_task_completed(roadmap, task['id'], score)
+
+        # Записываем обновлённый roadmap
+        write_file(roadmap_path, updated_roadmap)
+
+        # Коммит с обновлённым roadmap
+        bash_command(f"""
+            git add {roadmap_path}
+            git commit -m "docs: mark task {task['id']} as completed (score {score}/10)"
+        """)
+
+        # Оркестратор делает коммит задачи
+        bash_command(f"""
+            git add docs/develop/{feature_id}/{task['id']}/
+            git commit -m "feat: {task['name']} ({task['id']})"
+        """)
+        print(f"✅ {task['id']}: коммит создан (score={score})")
+```
+
+### Псевдокод отметки фичи после merge
+
+```python
+# ─────────────────────────────────────────────────────────────────
+# ЭТАП 4: ВСЕ задачи фичи завершены (score ≥ 9)
+# ─────────────────────────────────────────────────────────────────
+
+# Merge фичи в {MAIN_BRANCH}
+bash_command(f"""
+    git checkout {MAIN_BRANCH}
+    git merge feature/{feature_id}
+    git branch -d feature/{feature_id}
+""")
+
+# ─────────────────────────────────────────────────────────────────
+# ШАГ 4.1: Отметить фичу в FEATURES_INDEX.md как выполненную
+# ─────────────────────────────────────────────────────────────────
+features_index_path = "docs/project/FEATURES_INDEX.md"
+features_index = read_file(features_index_path)
+
+# Добавляем статус фичи
+updated_index = mark_feature_completed(features_index, feature_id)
+
+# Записываем обновлённый индекс
+write_file(features_index_path, updated_index)
+
+# Коммит с обновлённым индексом
+bash_command(f"""
+    git add {features_index_path}
+    git commit -m "docs: mark feature {feature_id} as completed"
+""")
+
+print(f"✅ Фича {feature_id} завершена и смержена")
+```
+
+### Функции отметки (псевдокод)
+
+```python
+def mark_task_completed(roadmap_content, task_id, score):
+    """Добавляет статус выполненной задачи в roadmap"""
+    from datetime import datetime
+
+    completed_date = datetime.now().strftime("%Y-%m-%d")
+
+    # Находим секцию задачи
+    task_section = find_task_section(roadmap_content, task_id)
+
+    # Если статус уже есть — обновляем, иначе добавляем
+    if "**Status:**" in task_section:
+        # Обновляем существующий статус
+        updated = task_section.replace(
+            "**Status:** ⏳ IN PROGRESS",
+            f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10"
+        )
+    else:
+        # Добавляем новый статус после заголовка задачи
+        updated = task_section.replace(
+            f"### Task {task_id}:",
+            f"### Task {task_id}:\n**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10"
+        )
+
+    # Заменяем в roadmap
+    return roadmap_content.replace(task_section, updated)
+
+
+def mark_feature_completed(features_index_content, feature_id):
+    """Добавляет статус выполненной фичи в FEATURES_INDEX.md"""
+    from datetime import datetime
+
+    completed_date = datetime.now().strftime("%Y-%m-%d")
+
+    # Находим секцию фичи
+    feature_section = find_feature_section(features_index_content, feature_id)
+
+    # Если статус уже есть — обновляем, иначе добавляем
+    if "**Status:**" in feature_section:
+        # Обновляем существующий статус
+        updated = feature_section.replace(
+            "**Status:** ⏳ IN PROGRESS",
+            f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}"
+        )
+    else:
+        # Добавляем новый статус после Dependencies
+        updated = feature_section.replace(
+            f"**Notes:**",
+            f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Notes:**"
+        )
+
+    # Заменяем в FEATURES_INDEX
+    return features_index_content.replace(feature_section, updated)
+```
+
+---
+7. **⚠️ ОБЯЗАТЕЛЬНО: Отмечать выполненные задачи в roadmap после score ≥ 9**
+8. **⚠️ ОБЯЗАТЕЛЬНО: Отмечать выполненную фичу в FEATURES_INDEX.md после merge**
 
 
 ### Шаг 1: Анализ фич и зависимостей
@@ -1364,7 +1600,7 @@ Task(feature-verifier, "...T-003...")  → score ≥ 9 → КОММИТ
 
 **Агент сам сделает коммит** после создания артефактов.
 
-Выход: `docs/project/README.md`, `docs/project/ARCHITECTURE.md`, `docs/project/USAGE.md`
+Выход: `README.md` (в корне проекта), `docs/project/ARCHITECTURE.md`, `docs/project/USAGE.md`
 
 ---
 
