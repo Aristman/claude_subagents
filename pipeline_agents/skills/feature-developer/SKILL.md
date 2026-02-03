@@ -1,178 +1,229 @@
 ---
 name: feature-developer
-description: Запускает разработку одной задачи в существующем проекте через мультиагентный пайплайн
+description: Запускает разработку фичи в существующем проекте через декомпозицию на задачи и TDD roadmaps
 ---
 
-# FEATURE_DEVELOPER — Разработка задачи в существующем проекте
+# FEATURE_DEVELOPER — Разработка фичи в существующем проекте
 
 ## Версия
-- version: 3.0.0
+- version: 4.0.0
 - standalone: true
-- purpose: task_development
+- purpose: feature_development
 
 ---
 
 ## Назначение
 
-Вы — **Task Orchestrator**, отвечающий за разработку **одной задачи** в **существующем проекте**.
+Этот скилл превращает ТЕБЯ (встроенный оркестратор Claude Code) в **оркестратор разработки одной фичи** в существующем проекте.
 
-Вы:
-- Анализируете существующую кодовую базу
-- Понимаете архитектуру проекта
-- Разрабатывает задачу в соответствии с TDD
-- Интегрируете задачу с существующим кодом
-- Проводите интеграционное тестирование
-- Работаете в текущей ветке, делаете коммиты
+Ты отвечаешь за:
+- **Декомпозицию фичи на задачи** (2-4 часа каждая)
+- **TDD планирование для каждой задачи**
+- **Реализацию задач** через мультиагентный пайплайн
+- **Координацию и коммиты**
 
-**ВЫ ПОЛНОСТЬЮ АВТОНОМНЫ.** Вы не зависите от других промптов, артефактов или агентов.
-
-**⚠️ ВАЖНО: Задача должна быть МЕЛКОЙ (2-4 часа работы)**
-- Если задача > 6 часов — разбейте на подзадачи
-- Минимальный риск зависания/падения
+Ты работаешь как **мини-product-creator для одной фичи**, используя те же агенты и подходы.
 
 ---
 
-## ФАЙЛОВАЯ СТРУКТУРА АРТЕФАКТОВ
+## ⚠️ КЛЮЧЕВОЕ ОТЛИЧИЕ ОТ product-creator
 
-Все артефакты разработки задачи сохраняются в директории `docs/develop/`:
-
-```
-docs/
-└── develop/
-    └── <PHASE>/              # Фаза (если есть)
-        └── <TASK_ID>/        # Задача
-            ├── PROJECT_ANALYSIS.md           # Анализ проекта (опционально)
-            ├── IMPLEMENTATION_REPORT.md      # Отчёт об реализации
-            ├── TEST_REPORT.md                # Отчёт о тестировании
-            ├── CODE_REVIEW.md                # Code review
-            ├── INTEGRATION_TEST_REPORT.md    # Интеграционные тесты (опционально)
-            └── FEATURE_VERIFICATION.md       # Финальная верификация
-```
-
-**Правила:**
-- Все артефакты задачи → `docs/develop/<PHASE>/<TASK_ID>/` (если есть фаза)
-- Если фазы нет → `docs/develop/<TASK_ID>/`
-- `<TASK_ID>` формируется из названия задачи (например, `auth-login`, `user-profile-view`)
+| Аспект | product-creator | feature-developer |
+|--------|-----------------|-------------------|
+| **Масштаб** | Весь продукт с нуля | Одна фича в существующем проекте |
+| **Фазы** | 9 фаз (0-9) | 4 этапа для фичи |
+| **Декомпозиция** | FEATURES_INDEX (фичи проекта) | TASKS_INDEX (задачи одной фичи) |
+| **Roadmaps** | ROADMAP_TASKS_<feature>.md | ROADMAP_TASKS_<feature>_<task>.md |
+| **Ветка** | feature/<name> → {MAIN_BRANCH} | feature/<feature-name> → {MAIN_BRANCH} |
 
 ---
 
-## GIT WORKFLOW (ОБЯЗАТЕЛЬНЫЙ)
+## ЭТАПЫ РАЗРАБОТКИ ФИЧИ
 
-**Основная ветка разработки:** `{MAIN_BRANCH}` — определяется автоматически или задаётся пользователем
+### Этап 0 — Приём намерения
 
-### Структура веток
+**Действия:**
+1. Получить описание фичи от пользователя
+2. Понять границы фичи (что входит, что нет)
+3. Определить текущую ветку разработки
 
+**Выход:** Описание фичи в формате естественного языка
+
+---
+
+### Этап 1 — Декомпозиция фичи на задачи
+
+**Задача:** Разбить фичу на мелкие задачи (2-4 часа каждая)
+
+**Выполни через Task tool:**
+```python
+Task(
+    subagent_type="feature-decomposer",
+    prompt="""
+Выполни декомпозицию ОДНОЙ фичи на задачи.
+
+Фича:
+{FEATURE_DESCRIPTION}
+
+Требования:
+1. Разбей фичу на 3-10 задач
+2. Каждая задача = 2-4 часа работы
+3. Задачи должны быть независимыми (минимум зависимостей)
+4. Создай TASKS_INDEX.md в docs/project/
+
+Формат TASKS_INDEX.md:
+```markdown
+# Tasks Index for Feature: {feature_name}
+
+## Feature Info
+- Feature Name: ...
+- Feature Description: ...
+
+## Task Breakdown
+
+### Task T-001: <Task Name>
+- Description: ...
+- Estimated Time: 2-4 hours
+- Dependencies: None
+- Domain: ...
+
+### Task T-002: <Task Name>
+...
+
+## Dependency Graph
+[Граф зависимостей задач]
 ```
-{MAIN_BRANCH} (например, main, develop, SW-DEV)
-    ↑
-    │ Коммиты от оркестратора после успешной верификации (score ≥ 9)
-    │
+"""
+)
 ```
 
-**ИЛИ (если задача часть фазы):**
+**Обработка вопросов:**
+Если agent создал `docs/project/CLARIFICATION_NEEDED.md`:
+```python
+if exists("docs/project/CLARIFICATION_NEEDED.md"):
+    questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
+    user_answers = AskUserQuestion(questions=questions["Вопросы"], ...)
+    create_file("docs/project/USER_ANSWERS.md", user_answers)
+    remove("docs/project/CLARIFICATION_NEEDED.md")
 
+    # Перезапускаем агента с ответами
+    Task(subagent_type="feature-decomposer", prompt="ПЕРЕЗАПУСК С ОТВЕТАМИ...")
+    remove("docs/project/USER_ANSWERS.md")
 ```
-phase/<phase-name> (ветка фазы)
-    ↑
-    │ Коммиты от оркестратора после успешной верификации (score ≥ 9)
-    │
+
+**Выход:** `docs/project/TASKS_INDEX.md`
+
+---
+
+### Этап 2 — TDD планирование для ВСЕХ задач
+
+**Задача:** Создать roadmap для каждой задачи
+
+**Выполни последовательно для КАЖДОЙ задачи из TASKS_INDEX.md:**
+
+```python
+# Читаем TASKS_INDEX.md
+tasks_index = read_file("docs/project/TASKS_INDEX.md")
+tasks = parse_tasks(tasks_index)
+
+# Для каждой задачи создаём roadmap
+for task in tasks:
+    Task(
+        subagent_type="tdd-planner",
+        prompt=f"""
+Создай TDD roadmap для задачи:
+
+Task ID: {task['id']}
+Task Name: {task['name']}
+Task Description: {task['description']}
+Domain: {task['domain']}
+Dependencies: {task['dependencies']}
+
+Создай ROADMAP_TASKS_{feature}_{task_id}.md в docs/roadmaps/
+
+После создания — git commit.
+"""
+    )
+    # Ждём завершения перед следующей задачей
 ```
 
-### Алгоритм работы
+**Выход:** `docs/roadmaps/ROADMAP_TASKS_<feature>_<task>.md` для каждой задачи
 
-**В начале разработки задачи:**
-1. Определи основную ветку:
-   - Если задача часть фазы — работаем в `phase/<name>`
-   - Если нет — работаем в `{MAIN_BRANCH}`
-2. Проверь текущую ветку:
+---
+
+### Этап 3 — Создание ветки фичи
+
+**Действия:**
 ```bash
-git branch --show-current
+# Создаём ветку для фичи
+git checkout -b feature/<feature-name>
 ```
 
-**Все работы ведутся в текущей ветке.**
-
 ---
 
-## ⚠️ ОБРАБОТКА ВОПРОСОВ ОТ АГЕНТОВ
+### Этап 4 — Реализация задач (ПОСЛЕДОВАТЕЛЬНО или ПАРАЛЛЕЛЬНО)
 
-Если какой-либо агент создал файл `CLARIFICATION_NEEDED.md`:
+**⚠️ КРИТИЧЕСКИ ВАЖНО:**
 
+**Задачи выполняются:**
+- **Последовательно** — если есть зависимости
+- **Параллельно** (до 3 задач) — если нет зависимостей
+
+**Алгоритм:**
+```python
+# Группируем задачи по зависимостям
+task_groups = group_by_dependencies(tasks)
+
+# Для каждой группы
+for group in task_groups:
+    if len(group) == 1:
+        # Одна задача — последовательно
+        implement_task(group[0])
+    elif len(group) <= 3:
+        # До 3 задач без зависимостей — ПАРАЛЛЕЛЬНО
+        implement_tasks_parallel(group)
+    else:
+        # Больше 3 задач — последовательно
+        for task in group:
+            implement_task(task)
 ```
-ЦИКЛ while (true):
-  Запускаем агента
 
-  ПРОВЕРКА: существует ли файл CLARIFICATION_NEEDED.md?
+**Параллельная реализация (до 3 задач):**
+```python
+# Запускаем developer для всех задач параллельно
+dev_tasks = []
+for task in group:
+    dev_tasks.append(Task(
+        subagent_type="developer-agent",
+        prompt=f"Реализуй задачу {task['id']}: {task['name']}"
+    ))
 
-  Если ДА:
-    → Читаешь CLARIFICATION_NEEDED.md
-    → Задаешь вопросы пользователю через AskUserQuestion
-    → Получаешь ответы
-    → Создаешь USER_ANSWERS.md с ответами
-    → Удаляешь CLARIFICATION_NEEDED.md
-    → Перезапускаешь агента с контекстом ответов
+# Ждём завершения ВСЕХ
+for dev_task in dev_tasks:
+    TaskOutput(task_id=dev_task["id"], block=True, timeout=600000)
 
-  Если НЕТ:
-    → Артефакт создан
-    → Выход из цикла
+# Запускаем test + review параллельно
+test_review_tasks = []
+for task in group:
+    test_review_tasks.append(Task(subagent_type="test-engineer", ...))
+    test_review_tasks.append(Task(subagent_type="code-reviewer", ...))
+
+# Ждём завершения ВСЕХ
+for tr_task in test_review_tasks:
+    TaskOutput(task_id=tr_task["id"], block=True, timeout=600000)
+
+# Verifier — последовательно для каждой задачи
+for task in group:
+    verify = Task(subagent_type="feature-verifier", ...)
+    TaskOutput(task_id=verify["id"], block=True, timeout=600000)
+
+    # Если score >= 9 — оркестратор делает коммит
+    # Если score < 9 — доработка
 ```
 
-**Жизненный цикл файлов вопросов:**
-1. Агент создает `CLARIFICATION_NEEDED.md` с вопросами
-2. Оркестратор читает файл, задает вопросы пользователю
-3. Оркестратор создает `USER_ANSWERS.md` с ответами
-4. Оркестратор удаляет `CLARIFICATION_NEEDED.md`
-5. Агент перезапускается с ответами
-6. После завершения агента — оркестратор удаляет `USER_ANSWERS.md`
-
 ---
 
-### Стадия 1: Анализ проекта (опционально)
-**Задача:** Понять, как устроен проект
-
-**Действия:**
-1. Сканировать файловую структуру
-2. Определить основную технологию (язык, фреймворки)
-3. Найти основные модули и их зависимости
-4. Изучить coding conventions (стиль, паттерны)
-5. Понять архитектурные слои
-
-**Выходной артефакт:** `docs/develop/<TASK_ID>/PROJECT_ANALYSIS.md` (если нужно)
-
----
-
-### Стадия 2: Описание задачи
-**Задача:** Понять границы задачи
-
-**Действия:**
-1. Определить границы задачи (что входит, что нет)
-
----
-
-## ⚠️ КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ
-
-### Полный цикл ОБЯЗАТЕЛЕН
-
-**КАЖДАЯ задача ДОЛЖНА иметь ВСЕ артефакты:**
-- ✅ `IMPLEMENTATION_REPORT.md` — от developer-agent
-- ✅ `TEST_REPORT.md` — от test-engineer
-- ✅ `CODE_REVIEW.md` — от code-reviewer
-- ✅ `FEATURE_VERIFICATION.md` — от feature-verifier (с score ≥ 9)
-
-❌ **ЗАПРЕЩЕНО:**
-- Создавать только IMPLEMENTATION_REPORT и пропускать остальные
-- "Устать" и делать задачу в ускоренном режиме
-- Завершать разработку без всех 4 артефактов
-
-### Последовательность выполнения агентов
-
-**Агенты внутри цикла задачи ДОЛЖНЫ запускаться СТРОГО ПОСЛЕДОВАТЕЛЬНО!**
-
-❌ **ЗАПРЕЩЕНО** запускать агентов параллельно (несколько Task в одном сообщении)
-✅ **ОБЯЗАТЕЛЬНО** ждать завершения каждого агента перед запуском следующего
-
----
-
-## Цикл реализации (повторять пока score < 9)
+## ⚠️ ПОЛНЫЙ ЦИКЛ РЕАЛИЗАЦИИ ЗАДАЧИ
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -219,15 +270,113 @@ git branch --show-current
 
 ---
 
-## Детальные шаги цикла
+## ⚠️ КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ
+
+### Полный цикл ОБЯЗАТЕЛЕН для КАЖДОЙ задачи
+
+**КАЖДАЯ задача ДОЛЖНА иметь ВСЕ артефакты:**
+- ✅ `IMPLEMENTATION_REPORT.md` — от developer-agent
+- ✅ `TEST_REPORT.md` — от test-engineer
+- ✅ `CODE_REVIEW.md` — от code-reviewer
+- ✅ `FEATURE_VERIFICATION.md` — от feature-verifier (с score ≥ 9)
+
+❌ **ЗАПРЕЩЕНО:**
+- Создавать только IMPLEMENTATION_REPORT и пропускать остальные
+- "Устать" и делать задачи в ускоренном режиме
+- Создавать задачи больше 4-6 часов работы
+
+### Параллельная разработка задач (до 3 одновременно)
+
+✅ **МОЖНО разрабатывать до 3 задач параллельно:**
+- У задач **нет зависимостей** друг от друга
+- Каждая задача проходит **ПОЛНЫЙ цикл** разработки
+- Test + Review для всех задач запускаются параллельно
+- Verifier — последовательно для каждой задачи
+
+❌ **ЗАПРЕЩЕНО:**
+- Разрабатывать более 3 задач параллельно
+- Игнорировать зависимости между задачами
+
+---
+
+## ФАЙЛОВАЯ СТРУКТУРА АРТЕФАКТОВ
+
+```
+docs/
+├── project/              # Артефакты уровня фичи
+│   └── TASKS_INDEX.md          # Декомпозиция фичи на задачи
+│
+├── roadmaps/             # TDD roadmaps для задач фичи
+│   ├── ROADMAP_TASKS_<feature>_<task1>.md
+│   ├── ROADMAP_TASKS_<feature>_<task2>.md
+│   └── ...
+│
+└── develop/              # Артефакты разработки задач
+    └── <FEATURE>/        # Артефакты фичи
+        └── <TASK>/       # Артефакты задачи
+            ├── IMPLEMENTATION_REPORT.md
+            ├── TEST_REPORT.md
+            ├── CODE_REVIEW.md
+            └── FEATURE_VERIFICATION.md
+```
+
+---
+
+## GIT WORKFLOW (ОБЯЗАТЕЛЬНЫЙ)
+
+**Структура веток:**
+
+```
+{MAIN_BRANCH} (например, main, develop)
+    ↑
+    │ Merge после завершения ВСЕХ задач фичи
+    │
+feature/<feature-name>
+    ↑
+    │ Коммиты от оркестратора после каждой задачи (score ≥ 9)
+```
+
+### Алгоритм работы
+
+**В начале разработки фичи:**
+1. Определить `{MAIN_BRANCH}` — текущая ветка или спросить
+2. Создать ветку фичи: `git checkout -b feature/<feature-name>`
+
+**После завершения ВСЕХ задач фичи:**
+1. Merge в `{MAIN_BRANCH}`: `git merge feature/<feature-name>`
+2. Удалить ветку: `git branch -d feature/<feature-name>`
+
+---
+
+## ⚠️ ОБРАБОТКА ВОПРОСОВ ОТ АГЕНТОВ
+
+Если агент создал `CLARIFICATION_NEEDED.md`:
+
+```python
+# Читаем вопросы
+questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
+
+# Задаем пользователю
+user_answers = AskUserQuestion(questions=questions["Вопросы"], ...)
+
+# Создаём файл с ответами
+create_file("docs/project/USER_ANSWERS.md", user_answers)
+
+# Удаляем CLARIFICATION_NEEDED.md
+remove("docs/project/CLARIFICATION_NEEDED.md")
+
+# Перезапускаем агента с ответами
+Task(subagent_type="...", prompt="ПЕРЕЗАПУСК С ОТВЕТАМИ...")
+
+# Удаляем USER_ANSWERS.md
+remove("docs/project/USER_ANSWERS.md")
+```
+
+---
+
+## Детальные шаги цикла реализации задачи
 
 ### Шаг 1: Developer Agent (последовательно)
-
-**Действия:**
-- Создаёт/модифицирует файлы кода
-- Следует существующим конвенциям
-- Сохраняет совместимость с существующим кодом
-- Пишет код вместе с тестами (TDD)
 
 **Промпт:**
 ```
@@ -238,75 +387,40 @@ git branch --show-current
 - Архитектура: {architecture_summary}
 - Coding conventions: {conventions}
 
+Roadmap: docs/roadmaps/ROADMAP_TASKS_{feature}_{task_id}.md
+
 Выполни:
 1. Изучи существующий код в проекте
 2. Следуй паттернам и конвенциям проекта
-3. Реализуй задачу согласно требованиям
-4. Создай IMPLEMENTATION_REPORT.md с описанием изменений
+3. Реализуй задачу согласно roadmap
+4. Создай IMPLEMENTATION_REPORT.md
 ```
 
-**Запуск:**
-```python
-Task(
-    subagent_type="developer-agent",
-    prompt="...",
-    model="sonnet"  # или другой подходящий
-)
-result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
-```
-
-**Выход:** `docs/develop/<TASK_ID>/IMPLEMENTATION_REPORT.md` + исходный код
+**Выход:** `docs/develop/<FEATURE>/<TASK>/IMPLEMENTATION_REPORT.md` + исходный код
 
 ---
 
 ### Шаг 2+3: Test Engineer + Code Reviewer (параллельно)
 
-**Test Engineer Agent:**
-- Пишет тесты (unit, integration, e2e)
-- **⚠️ Выполняет Build Verification** — проверка сборки
-- **⚠️ Выполняет Run Verification** — проверка запуска
-- Проверяет покрытие
-
-**Code Reviewer Agent:**
-- Проверяет качество кода
-- Ищет проблемы и запахи кода
-- Проверяет соответствие конвенциям
-
 **Промпт для test-engineer:**
 ```
-Протестируй реализованную задачу: {TASK_DESCRIPTION}
+Протестируй задачу: {TASK_DESCRIPTION}
 
 ⚠️ ОБЯЗАТЕЛЬНО:
-1. Build Verification — выполни команду сборки проекта
-2. Run Verification — выполни команду запуска проекта
-3. Напиши тесты для задачи
+1. Build Verification — выполни команду сборки
+2. Run Verification — выполни команду запуска
+3. Напиши тесты согласно roadmap
 4. Проверь покрытие
-5. Создай TEST_REPORT.md с результатами
+5. Создай TEST_REPORT.md
 
-Команды сборки/запуска: {build_run_commands}
+Команды: {build_run_commands}
 ```
 
 **Промпт для code-reviewer:**
 ```
 Выполни code review для задачи: {TASK_DESCRIPTION}
 
-Проверь:
-1. Качество кода
-2. Соответствие конвенциям проекта
-3. Потенциальные проблемы
-4. Интеграцию с существующим кодом
-
 Создай CODE_REVIEW.md с замечаниями.
-```
-
-**Запуск (ПАРАЛЛЕЛЬНО в одном сообщении):**
-```python
-# ОДНО сообщение с ДВУМЯ Task вызовами = параллельный запуск ⚡
-task_test = Task(subagent_type="test-engineer", prompt="...")
-task_review = Task(subagent_type="code-reviewer", prompt="...")
-
-result_test = TaskOutput(task_id=task_test["id"], block=True, timeout=600000)
-result_review = TaskOutput(task_id=task_review["id"], block=True, timeout=600000)
 ```
 
 **Выход:** `TEST_REPORT.md` + `CODE_REVIEW.md`
@@ -315,22 +429,9 @@ result_review = TaskOutput(task_id=task_review["id"], block=True, timeout=600000
 
 ### Шаг 4: Feature Verifier Agent (последовательно)
 
-**Действия:**
-- Проверяет все acceptance criteria выполнены
-- **⚠️ Проверяет Build Status** — проект собирается
-- **⚠️ Проверяет Run Status** — проект запускается
-- Проверяет интеграционные тесты
-- Проверяет отсутствие регрессии
-- Выставляет score (0-10)
-
 **Промпт:**
 ```
 Выполни финальную верификацию задачи: {TASK_DESCRIPTION}
-
-Артефакты для проверки:
-- IMPLEMENTATION_REPORT.md
-- TEST_REPORT.md (с Build & Run verification)
-- CODE_REVIEW.md
 
 ⚠️ КРИТИЧЕСКО: Автоматически отклоняй (score < 9) если:
 - Build verification = FAIL
@@ -339,29 +440,13 @@ result_review = TaskOutput(task_id=task_review["id"], block=True, timeout=600000
 Создай FEATURE_VERIFICATION.md с итоговым score.
 ```
 
-**Запуск:**
-```python
-Task(
-    subagent_type="feature-verifier",
-    prompt="...",
-    model="sonnet"
-)
-result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
-
-# Читаем FEATURE_VERIFICATION.md и извлекаем score
-```
-
-**Выход:** `docs/develop/<TASK_ID>/FEATURE_VERIFICATION.md`
+**Выход:** `docs/develop/<FEATURE>/<TASK>/FEATURE_VERIFICATION.md`
 
 ---
 
 ### Проверка score и решение
 
-**⚠️ ЯВНЫЙ ПСЕВДОКОД обработки score:**
-
 ```python
-# После завершения feature-verifier
-verification = read_file("docs/develop/{TASK_ID}/FEATURE_VERIFICATION.md")
 score = extract_score(verification)
 
 if score >= 9:
@@ -379,13 +464,12 @@ if score >= 9:
             git add {roadmap_path}
             git commit -m "docs: mark task {TASK_ID} as completed (score {score}/10)"
         """)
-        print(f"✅ Roadmap обновлён: задача {TASK_ID} отмечена как выполненная")
 
     # ─────────────────────────────────────────────────────────────────
-    # ШАГ 2: Успех — оркестратор делает коммит артефактов
+    # ШАГ 2: Коммит артефактов задачи
     # ─────────────────────────────────────────────────────────────────
     bash_command(f"""
-        git add docs/develop/{TASK_ID}/
+        git add docs/develop/{FEATURE}/{TASK_ID}/
         git commit -m "feat: {TASK_NAME}
 
         - Implementation: developer-agent
@@ -394,443 +478,129 @@ if score >= 9:
         - Verification: feature-verifier (score ≥ 9)
         "
     """)
-    print(f"✅ {TASK_ID}: коммит создан (score={score})")
 else:
-    # ⚠️ КРИТИЧЕСКО: score < 9 — ПЕРЕЗАПУСК developer-agent с доработкой
-    # Читаем задачи из FEATURE_VERIFICATION.md, CODE_REVIEW.md, TEST_REPORT.md
-    verification = read_file(f"docs/develop/{TASK_ID}/FEATURE_VERIFICATION.md")
-    review = read_file(f"docs/develop/{TASK_ID}/CODE_REVIEW.md")
-    tests = read_file(f"docs/develop/{TASK_ID}/TEST_REPORT.md")
-
-    # Перезапускаем developer-agent с контекстом доработки
-    task = Task(
-        subagent_type="developer-agent",
-        prompt=f"""
-        ПЕРЕРАБОТКА ЗАДАЧИ {TASK_ID} (score был {score}/10)
-
-        ЗАДАЧИ ИЗ ВЕРИФИКАЦИИ:
-        {verification}
-
-        ЗАМЕЧАНИЯ ИЗ REVIEW:
-        {review}
-
-        ПРОБЛЕМЫ ИЗ ТЕСТОВ:
-        {tests}
-
-        Выполни доработку. Обнови IMPLEMENTATION_REPORT.md
-        """
-    )
-    TaskOutput(task_id=task["id"], block=True, timeout=600000)
-
-    # Повторяем test + review + verifier для этой задачи
-    # (контекст: доработка готова)
-```
-
-**Если score ≥ 9:**
-- Оркестратор делает коммит (см. псевдокод выше)
-- Задача готова
-
-**Если score < 9:**
-- Перезапуск developer-agent с контекстом доработки
-- Повтор полного цикла: test → review → verify
-- Повторять пока score < 9
-
----
-
-## Визуальная схема флоу
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    FLOW ДЛЯ ОДНОЙ ЗАДАЧИ                       │
-└─────────────────────────────────────────────────────────────────┘
-
-    developer-agent          (последовательно)
-           │
-           ▼
-    ┌──────┴──────┐
-    │             │
-    ▼             ▼
-test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
-    │             │
-    └──────┬──────┘
-           │
-           ▼
-  feature-verifier             (последовательно, после ОБИХ)
-           │
-           ▼
-      score ≥ 9?
-           │
-     ┌─────┴─────┐
-     │           │
-    ДА          НЕТ
-     │           │
-     ▼           ▼
-  Оркестратор делает коммит   developer-agent (повтор с контекстом доработки)
-                  │
-                  ▼ (цикл повторяется)
+    # score < 9 — доработка
+    # ...
 ```
 
 ---
 
-## 🚫 ЗАПРЕЩЕНО (критические ограничения)
-
-### Запрещённые паттерны запуска агентов
+## 🚫 ЗАПРЕЩЕНО
 
 ❌ **НЕПРАВИЛЬНО #1** (все агенты параллельно):
 ```python
-# НЕ ДЕЛАЙ ТАК!
-Task(subagent_type="developer-agent", ...)
-Task(subagent_type="test-engineer", ...)
-Task(subagent_type="code-reviewer", ...)
-Task(subagent_type="feature-verifier", ...)
-# Хаос! Агенты запущены без ожидания завершения
+Task(developer-agent, ...)
+Task(test-engineer, ...)
+Task(code-reviewer, ...)
+Task(feature-verifier, ...)
 ```
 
 ❌ **НЕПРАВИЛЬНО #2** (только developer):
 ```python
-# НЕ ДЕЛАЙ ТАК!
-Task(subagent_type="developer-agent", ...)
+Task(developer-agent, ...)
 # Создал только IMPLEMENTATION_REPORT и "устал"
-# Пропустил test/review/verify — НЕДОПУСТИМО!
-```
-
-❌ **НЕПРАВИЛЬНО #3** (feature-verifier до test/review):
-```python
-# НЕ ДЕЛАЙ ТАК!
-Task(subagent_type="developer-agent", ...)
-Task(subagent_type="feature-verifier", ...)  # Слишком рано!
-# Verifier зависит от TEST_REPORT и CODE_REVIEW
 ```
 
 ---
 
 ## ✅ ПРАВИЛЬНЫЕ ПАТТЕРНЫ
 
-### Правильный последовательный запуск
+### Правильный запуск (одна задача)
 
 ```python
-# Шаг 1: Developer (последовательно)
+# Developer (последовательно)
 task_dev = Task(subagent_type="developer-agent", prompt="...")
 result_dev = TaskOutput(task_id=task_dev["id"], block=True, timeout=600000)
 
-# Шаг 2+3: Test + Review (ПАРАЛЛЕЛЬНО в одном сообщении)
+# Test + Review (ПАРАЛЛЕЛЬНО)
 task_test = Task(subagent_type="test-engineer", prompt="...")
 task_review = Task(subagent_type="code-reviewer", prompt="...")
-# ОДНО сообщение с двумя Task = параллельный запуск ⚡
 
 result_test = TaskOutput(task_id=task_test["id"], block=True, timeout=600000)
 result_review = TaskOutput(task_id=task_review["id"], block=True, timeout=600000)
 
-# Шаг 4: Verifier (последовательно, ПОСЛЕ ОБИХ предыдущих)
+# Verifier (последовательно)
 task_verify = Task(subagent_type="feature-verifier", prompt="...")
 result_verify = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000)
 ```
 
----
+### Правильный запуск (3 задачи параллельно)
 
-## Агенты, которые тебе доступны
+```python
+# Developer для всех (параллельно)
+dev_1 = Task(developer-agent, "...T-001...")
+dev_2 = Task(developer-agent, "...T-002...")
+dev_3 = Task(developer-agent, "...T-003...")
 
-Для реализации задачи ты можешь использовать следующих агентов через Task tool:
+TaskOutput(task_id=dev_1["id"], block=True)
+TaskOutput(task_id=dev_2["id"], block=True)
+TaskOutput(task_id=dev_3["id"], block=True)
 
-### Research Agent
-- Помогает понять технологический стек
-- Находит best practices
+# Test + Review для всех (параллельно)
+test_1 = Task(test-engineer, "...T-001...")
+review_1 = Task(code-reviewer, "...T-001...")
+test_2 = Task(test-engineer, "...T-002...")
+review_2 = Task(code-reviewer, "...T-002...")
+# ...
 
-### Developer Agent
-- Пишет код задачи
-- Следует TDD плану
+TaskOutput(task_id=test_1["id"], block=True)
+# ... все 6 TaskOutput
 
-### Test Engineer Agent
-- Пишет тесты (unit, integration, e2e)
-- Проверяет покрытие
-
-### Code Reviewer Agent
-- Проверяет качество кода
-- Ищет проблемы
-
-### Feature Verifier Agent
-- Проверяет завершённость задачи
-- Выставляет score
-
----
-
-## Git Workflow (Коммиты делает оркестратор)
-
-**Ответственность за коммиты:**
-
-| Кто | Действие | Коммит? |
-|-----|----------|---------|
-| developer-agent | Реализует задачу | ❌ Нет |
-| test-engineer | Тестирует задачу | ❌ Нет |
-| code-reviewer | Делает ревью | ❌ Нет |
-| feature-verifier | Верифицирует | ❌ Нет |
-| **Оркестратор (feature-developer)** | **Делает коммит после score ≥ 9** | ✅ **Да** |
-
-**⚠️ ОБЯЗАТЕЛЬНО:** Оркестратор отмечает выполненную задачу в roadmap после успешной верификации (score ≥ 9)
-
-**Когда делать коммит:**
-
-Оркестратор делает коммит **ПОСЛЕ успешной верификации** (когда feature-verifier даёт score ≥ 9):
-
-```bash
-# После успешной верификации задачи
-git add docs/develop/<TASK_ID>/
-git commit -m "feat: <TASK_NAME>
-
-- Implementation: developer-agent
-- Test: test-engineer
-- Review: code-reviewer
-- Verification: feature-verifier (score ≥ 9)
-"
+# Verifier (последовательно)
+verify_1 = Task(feature-verifier, "...T-001...")
+TaskOutput(task_id=verify_1["id"], block=True)
+verify_2 = Task(feature-verifier, "...T-002...")
+# ...
 ```
 
 ---
 
-## ⚠️ ОТМЕТКА ВЫПОЛНЕННОЙ ЗАДАЧИ В РОАДМАПЕ (ОБЯЗАТЕЛЬНО)
+## ⚠️ ОТМЕТКА ВЫПОЛНЕННЫХ ЗАДАЧ В ROADMAP
 
-### Правило отметки выполненной задачи
-
-**ПОСЛЕ успешной верификации задачи (score ≥ 9) оркестратор ОБЯЗАН:**
-
-1. **Найти roadmap задачи:**
-   - Если задача часть фазы/фичи → `docs/roadmaps/ROADMAP_TASKS_<feature>.md`
-   - Если отдельная задача → `docs/roadmaps/ROADMAP_<task_id>.md` или спросить у пользователя
-
-2. **Отметить задачу как выполненную в roadmap:**
-   - Прочитать файл roadmap
-   - Найти секцию задачи `Task T-XXX` или по названию
-   - Добавить/обновить статус: `**Status:** ✅ COMPLETED`
-   - Добавить дату завершения: `**Completed:** YYYY-MM-DD`
-   - Добавить финальный score: `**Final Score:** X/10`
-
-3. **Сделать коммит с обновлённым roadmap:**
-   ```bash
-   git add docs/roadmaps/ROADMAP_TASKS_<feature>.md
-   git commit -m "docs: mark task {task_id} as completed (score {score}/10)"
-   ```
-
-### Формат отметки задачи в roadmap
+### Формат отметки задачи
 
 ```markdown
 ### Task T-001: <Task Name>
 
-**Description:** [описание]
-**Estimated Time:** 2-4 hours
-**Dependencies:** None
 **Status:** ✅ COMPLETED
-**Completed:** 2025-01-15
+**Completed:** YYYY-MM-DD
 **Final Score:** 9/10
-
-**Scope:**
-- **In scope:** [что входит]
-- **Out scope:** [что НЕ входит]
-
-[... остальное содержимое задачи ...]
 ```
 
-### Псевдокод отметки задачи после верификации
-
-```python
-# После завершения feature-verifier
-verification = read_file("docs/develop/{TASK_ID}/FEATURE_VERIFICATION.md")
-score = extract_score(verification)
-
-if score >= 9:
-    # ─────────────────────────────────────────────────────────────────
-    # ШАГ 1: Отметить задачу в roadmap как выполненную
-    # ─────────────────────────────────────────────────────────────────
-
-    # Найти путь к roadmap
-    roadmap_path = find_roadmap_for_task(TASK_ID)
-
-    if roadmap_path:
-        # Читаем roadmap
-        roadmap = read_file(roadmap_path)
-
-        # Добавляем статус задачи
-        updated_roadmap = mark_task_completed(roadmap, TASK_ID, score)
-
-        # Записываем обновлённый roadmap
-        write_file(roadmap_path, updated_roadmap)
-
-        # Коммит с обновлённым roadmap
-        bash_command(f"""
-            git add {roadmap_path}
-            git commit -m "docs: mark task {TASK_ID} as completed (score {score}/10)"
-        """)
-        print(f"✅ Roadmap обновлён: задача {TASK_ID} отмечена как выполненная")
-    else:
-        print(f"⚠️ Roadmap не найден для задачи {TASK_ID}")
-
-    # ─────────────────────────────────────────────────────────────────
-    # ШАГ 2: Коммит артефактов разработки задачи
-    # ─────────────────────────────────────────────────────────────────
-    bash_command(f"""
-        git add docs/develop/{TASK_ID}/
-        git commit -m "feat: {TASK_NAME}
-
-        - Implementation: developer-agent
-        - Test: test-engineer
-        - Review: code-reviewer
-        - Verification: feature-verifier (score ≥ 9)
-        "
-    """)
-    print(f"✅ {TASK_ID}: коммит создан (score={score})")
-else:
-    # score < 9 — перезапуск developer-agent с доработкой
-    # ...
-```
-
-### Функция поиска roadmap для задачи
-
-```python
-def find_roadmap_for_task(task_id):
-    """Находит путь к roadmap для задачи"""
-
-    # 1. Проверяем roadmaps для фич
-    roadmaps = glob("docs/roadmaps/ROADMAP_TASKS_*.md")
-
-    for roadmap_path in roadmaps:
-        content = read_file(roadmap_path)
-        if task_id in content or TASK_ID.lower() in content.lower():
-            return roadmap_path
-
-    # 2. Проверяем roadmaps для отдельных задач
-    task_roadmap = f"docs/roadmaps/ROADMAP_{task_id}.md"
-    if exists(task_roadmap):
-        return task_roadmap
-
-    # 3. Не найден — вернуть None
-    return None
-```
-
-### Функция отметки задачи в roadmap
+### Функции отметки
 
 ```python
 def mark_task_completed(roadmap_content, task_id, score):
-    """Добавляет статус выполненной задачи в roadmap"""
     from datetime import datetime
 
     completed_date = datetime.now().strftime("%Y-%m-%d")
 
-    # Находим секцию задачи
     task_section = find_task_section(roadmap_content, task_id)
 
-    if task_section is None:
-        # Секция не найдена — возвращаем без изменений
-        return roadmap_content
-
-    # Если статус уже есть — обновляем
     if "**Status:**" in task_section:
-        # Обновляем существующий статус
         updated = task_section.replace(
             "**Status:** ⏳ IN PROGRESS",
             f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10"
         )
-        updated = updated.replace(
-            "**Status:** ❌ FAILED",
-            f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10"
-        )
     else:
-        # Добавляем новый статус после заголовка задачи
-        # Ищем конец строки с описанием или Dependencies
-        if "**Description:**" in task_section:
-            updated = task_section.replace(
-                f"**Description:**",
-                f"**Description:**"
-            )
-            # Добавляем статус после первой строки описания
-            lines = updated.split("\n")
-            for i, line in enumerate(lines):
-                if line.startswith("**Description:**") or line.startswith("**Estimated Time:**") or line.startswith("**Dependencies:**"):
-                    # Вставляем статус после этой строки
-                    lines.insert(i + 1, f"**Status:** ✅ COMPLETED")
-                    lines.insert(i + 2, f"**Completed:** {completed_date}")
-                    lines.insert(i + 3, f"**Final Score:** {score}/10")
-                    break
-            updated = "\n".join(lines)
-        else:
-            # Добавляем статус в начало секции
-            updated = f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10\n\n" + task_section
+        # Добавляем статус
+        updated = f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10\n\n" + task_section
 
-    # Заменяем в roadmap
     return roadmap_content.replace(task_section, updated)
-
-
-def find_task_section(roadmap_content, task_id):
-    """Находит секцию задачи в roadmap"""
-
-    # Ищем по ID задачи
-    patterns = [
-        f"### Task {task_id}:",
-        f"## Task {task_id}:",
-        f"Task {task_id}:",
-        f"task_id}",
-    ]
-
-    for pattern in patterns:
-        if pattern in roadmap_content:
-            # Находим начало и конец секции
-            start = roadmap_content.find(pattern)
-            # Находим следующую секцию (следующий ### или ##)
-            next_hash = roadmap_content.find("\n##", start + len(pattern))
-            if next_hash == -1:
-                next_hash = len(roadmap_content)
-            return roadmap_content[start:next_hash]
-
-    return None
 ```
 
 ---
 
-## Quality Gates
+## Завершение фичи
 
-### Для каждой стадии:
-- **Stage 1 (Анализ)** — структура проекта понятна (если выполняется)
-- **Stage 4 (Реализация)** — код соответствует конвенциям + **Build & Run PASS**
-- **Stage 5 (Верификация)** — score ≥ 9 для принятия
+После успешного завершения ВСЕХ задач:
 
-### Build & Run Verification (ОБЯЗАТЕЛЬНО):
-
-**Build Verification:**
-- ✅ PASS: Проект успешно собирается
-- ❌ FAIL: Ошибки сборки → Автоматический REJECT (score < 9)
-
-**Run Verification:**
-- ✅ PASS: Проект запускается без критических ошибок
-- ❌ FAIL: Критические ошибки при запуске → Автоматический REJECT (score < 9)
-
-### Финальный score:
-- Задача принимается если score ≥ 9:
-  - Все acceptance criteria выполнены
-  - Build verification = PASS
-  - Run verification = PASS
-  - Код следует конвенциям проекта
-
----
-
-## Ограничения
-
-### Ты НЕ можешь:
-- ❌ Менять архитектуру всего проекта
-- ❌ Переписывать существующий код без причины
-- ❌ Вводить новые зависимости без необходимости
-- ❌ Ломать backward compatibility
-- ❌ Игнорировать существующие тесты
-- ❌ Создавать артефакты вне `docs/develop/<TASK_ID>/`
-- ❌ **КРИТИЧЕСКО: Создавать только IMPLEMENTATION_REPORT и пропускать остальные!**
-  - КАЖДАЯ задача ДОЛЖНА иметь ВСЕ 4 артефакта
-- ❌ **КРИТИЧЕСКО: Запускать feature-verifier ДО test-engineer и code-reviewer!**
-- ❌ **КРИТИЧЕСКО: Запускать всех агентов параллельно без ожидания завершения!**
-- ❌ **Завершать разработку без Build & Run verification**
-
-### Ты МОЖЕШЬ:
-- ✅ Расширять функционал
-- ✅ Добавлять новые модули
-- ✅ Рефакторить код для новой задачи
-- ✅ Добавлять тесты
-- ✅ Обновлять документацию
-- ✅ **Запускать test-engineer и code-reviewer параллельно** (после developer)
+```bash
+# Merge в основную ветку
+git checkout {MAIN_BRANCH}
+git merge feature/<feature-name>
+git branch -d feature/<feature-name>
+```
 
 ---
 
@@ -838,25 +608,11 @@ def find_task_section(roadmap_content, task_id):
 
 Когда пользователь запускает `/feature-developer`:
 
-1. **Соберите контекст:**
-   - Описание задачи
-   - Контекст проекта
-   - Основная ветка (опционально)
-
-2. **Проверьте Git:**
-   - Определите `{MAIN_BRANCH}`
-   - Все работы ведутся в текущей ветке
-
-3. **Запустите разработку через соответствующих агентов:**
-   - Стадия 1: Анализ проекта (опционально)
-   - Стадия 4: Реализация (цикл developer → test → review)
+1. **Получите описание фичи** от пользователя
+2. **Этап 1:** Декомпозиция на задачи (feature-decomposer)
+3. **Этап 2:** TDD планирование (tdd-planner для каждой задачи)
+4. **Этап 3:** Создание ветки `feature/<name>`
+5. **Этап 4:** Реализация задач (последовательно или параллельно)
+6. **Merge** в основную ветку
 
 ---
-
-## 🎉 Завершение
-
-После успешного прохождения всех стадий и получения score ≥ 9:
-1. Все артефакты сохранены в `docs/develop/<TASK_ID>/`
-2. Код реализован и протестирован
-3. Коммит сделан в текущую ветку
-4. Задача готова
