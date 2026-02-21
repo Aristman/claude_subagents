@@ -6,9 +6,16 @@ description: Запускает разработку фичи в существ�
 # FEATURE_DEVELOPER — Разработка фичи в существующем проекте
 
 ## Версия
-- version: 4.0.0
+- version: 5.0.0
 - standalone: true
 - purpose: feature_development
+
+## Изменения v5.0.0
+- Добавлена обработка ошибок при запуске агентов (safe_launch_agent)
+- Добавлен retry с exponential backoff для failed агентов
+- Установлен лимит параллельных агентов = 5
+- Добавлена функция log_failed_task для регистрации неудачных задач
+- Добавлена функция verify_tdd_planning_complete для проверки создания roadmap
 
 ---
 
@@ -44,10 +51,32 @@ description: Запускает разработку фичи в существ�
 
 **Действия:**
 1. Получить описание фичи от пользователя
-2. Понять границы фичи (что входит, что нет)
-3. Определить текущую ветку разработки
+2. **Запросить фичевый путь для артефактов** через AskUserQuestion
+   - Может быть пустым (артефакты в `docs/project/`, `docs/roadmaps/`, `docs/develop/`)
+   - Может быть путём вида `features/auth/`, `modules/user/`, `episodes/season1/` и т.д.
+   - Путь добавляется внутри `project/{FEATURE_PATH}`, `roadmaps/{FEATURE_PATH}`, `develop/{FEATURE_PATH}`
+3. Понять границы фичи (что входит, что нет)
+4. Определить текущую ветку разработки
 
-**Выход:** Описание фичи в формате естественного языка
+**Пример запроса пути:**
+```python
+AskUserQuestion(
+    questions=[{
+        "question": "Укажи фичевый путь для сохранения артефактов (например: features/auth/, modules/user/). Оставь пустым для сохранения в docs/project/, docs/roadmaps/ без подпути:",
+        "header": "Feature Path",
+        "options": [
+            {"label": "Пустой (docs/project/, docs/roadmaps/)", "description": "Артефакты в корне project/, roadmaps/"},
+            {"label": "features/<name>/", "description": "Артефакты в project/features/<name>/, roadmaps/features/<name>/"},
+            {"label": "modules/<name>/", "description": "Артефакты в project/modules/<name>/, roadmaps/modules/<name>/"}
+        ],
+        "multiSelect": False
+    }]
+)
+```
+
+**Выход:**
+- Описание фичи в формате естественного языка
+- `{FEATURE_PATH}` — фичевый путь (с trailing slash или пустой)
 
 ---
 
@@ -69,11 +98,16 @@ Task(
 1. Разбей фичу на 3-10 задач
 2. Каждая задача = 2-4 часа работы
 3. Задачи должны быть независимыми (минимум зависимостей)
-4. Создай TASKS_INDEX.md в docs/project/
+4. Создай TASKS_INDEX.md в docs/project/{FEATURE_PATH}
 
-Формат TASKS_INDEX.md:
+**Формат TASKS_INDEX.md:**
 ```markdown
 # Tasks Index for Feature: {feature_name}
+
+## Feature Info
+- Feature Name: ...
+- Feature Description: ...
+- Feature Path: {FEATURE_PATH}  <!-- Фичевый путь для артефактов -->
 
 ## Feature Info
 - Feature Name: ...
@@ -98,20 +132,20 @@ Task(
 ```
 
 **Обработка вопросов:**
-Если agent создал `docs/project/CLARIFICATION_NEEDED.md`:
+Если agent создал `docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md`:
 ```python
-if exists("docs/project/CLARIFICATION_NEEDED.md"):
-    questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
+if exists(f"docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md"):
+    questions = parse_clarification_needed(f"docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md")
     user_answers = AskUserQuestion(questions=questions["Вопросы"], ...)
-    create_file("docs/project/USER_ANSWERS.md", user_answers)
-    remove("docs/project/CLARIFICATION_NEEDED.md")
+    create_file(f"docs/project/{FEATURE_PATH}USER_ANSWERS.md", user_answers)
+    remove(f"docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md")
 
     # Перезапускаем агента с ответами
     Task(subagent_type="feature-decomposer", prompt="ПЕРЕЗАПУСК С ОТВЕТАМИ...")
-    remove("docs/project/USER_ANSWERS.md")
+    remove(f"docs/project/{FEATURE_PATH}USER_ANSWERS.md")
 ```
 
-**Выход:** `docs/project/TASKS_INDEX.md`
+**Выход:** `docs/project/{FEATURE_PATH}TASKS_INDEX.md`
 
 ---
 
@@ -119,18 +153,26 @@ if exists("docs/project/CLARIFICATION_NEEDED.md"):
 
 **Задача:** Создать roadmap для каждой задачи
 
-**Выполни последовательно для КАЖДОЙ задачи из TASKS_INDEX.md:**
+**⚠️ ОГРАНИЧЕНИЕ ПАРАЛЛЕЛИЗМА:** Максимум 5 агентов одновременно.
+
+**Выполни батчами по 5 задач:**
 
 ```python
 # Читаем TASKS_INDEX.md
-tasks_index = read_file("docs/project/TASKS_INDEX.md")
+tasks_index = read_file(f"docs/project/{FEATURE_PATH}TASKS_INDEX.md")
 tasks = parse_tasks(tasks_index)
 
-# Для каждой задачи создаём roadmap
-for task in tasks:
-    Task(
-        subagent_type="tdd-planner",
-        prompt=f"""
+BATCH_SIZE = 5  # Максимум параллельных агентов
+
+# Разбиваем на батчи
+for batch_start in range(0, len(tasks), BATCH_SIZE):
+    batch = tasks[batch_start:batch_start + BATCH_SIZE]
+
+    # Запускаем агентов в батче (до 5 параллельно)
+    for task in batch:
+        result = safe_launch_agent(
+            subagent_type="tdd-planner",
+            prompt=f"""
 Создай TDD roadmap для задачи:
 
 Task ID: {task['id']}
@@ -138,16 +180,20 @@ Task Name: {task['name']}
 Task Description: {task['description']}
 Domain: {task['domain']}
 Dependencies: {task['dependencies']}
+Feature Path: {FEATURE_PATH}
 
-Создай ROADMAP_TASKS_{feature}_{task_id}.md в docs/roadmaps/
+Создай ROADMAP_TASKS_{feature}_{task_id}.md в docs/roadmaps/{FEATURE_PATH}
 
 После создания — git commit.
 """
-    )
-    # Ждём завершения перед следующей задачей
+        )
+        # Проверяем результат
+        if result is None or result.strip() == "":
+            log_error(f"Task {task['id']}: agent returned empty result")
+            # Добавляем в список для повторного запуска
 ```
 
-**Выход:** `docs/roadmaps/ROADMAP_TASKS_<feature>_<task>.md` для каждой задачи
+**Выход:** `docs/roadmaps/{FEATURE_PATH}ROADMAP_TASKS_<feature>_<task>.md` для каждой задачи
 
 ---
 
@@ -167,10 +213,14 @@ git checkout -b feature/<feature-name>
 
 **Задачи выполняются:**
 - **Последовательно** — если есть зависимости
-- **Параллельно** (до 3 задач) — если нет зависимостей
+- **Параллельно** (до 5 задач/агентов) — если нет зависимостей
+
+**⚠️ ГЛОБАЛЬНЫЙ ЛИМИТ: Максимум 5 агентов одновременно во всём пайплайне.**
 
 **Алгоритм:**
 ```python
+MAX_PARALLEL_AGENTS = 5
+
 # Группируем задачи по зависимостям
 task_groups = group_by_dependencies(tasks)
 
@@ -179,34 +229,38 @@ for group in task_groups:
     if len(group) == 1:
         # Одна задача — последовательно
         implement_task(group[0])
-    elif len(group) <= 3:
-        # До 3 задач без зависимостей — ПАРАЛЛЕЛЬНО
+    elif len(group) <= MAX_PARALLEL_AGENTS:
+        # До 5 задач без зависимостей — ПАРАЛЛЕЛЬНО
         implement_tasks_parallel(group)
     else:
-        # Больше 3 задач — последовательно
-        for task in group:
-            implement_task(task)
+        # Больше 5 задач — батчами по 5
+        for batch in chunks(group, MAX_PARALLEL_AGENTS):
+            implement_tasks_parallel(batch)
 ```
 
-**Параллельная реализация (до 3 задач):**
+**Параллельная реализация (до 5 агентов):**
 ```python
-# Запускаем developer для всех задач параллельно
+# Запускаем developer для всех задач параллельно (до 5)
 dev_tasks = []
-for task in group:
+for task in group[:5]:  # Максимум 5
     dev_tasks.append(Task(
         subagent_type="developer-agent",
         prompt=f"Реализуй задачу {task['id']}: {task['name']}"
     ))
 
-# Ждём завершения ВСЕХ
+# Ждём завершения ВСЕХ с обработкой ошибок
 for dev_task in dev_tasks:
-    TaskOutput(task_id=dev_task["id"], block=True, timeout=600000)
+    try:
+        TaskOutput(task_id=dev_task["id"], block=True, timeout=600000)
+    except Exception as e:
+        log_agent_error(dev_task["id"], "developer-agent", e)
 
-# Запускаем test + review параллельно
-test_review_tasks = []
+# Запускаем test + review параллельно (до 10 агентов = 5*2)
+# НО лимит 5 — значит батчами
 for task in group:
-    test_review_tasks.append(Task(subagent_type="test-engineer", ...))
-    test_review_tasks.append(Task(subagent_type="code-reviewer", ...))
+    # Последовательно для каждой задачи, но test+review параллельно (2 агента)
+    test_task = Task(subagent_type="test-engineer", ...)
+    review_task = Task(subagent_type="code-reviewer", ...)
 
 # Ждём завершения ВСЕХ
 for tr_task in test_review_tasks:
@@ -285,17 +339,190 @@ for task in group:
 - "Устать" и делать задачи в ускоренном режиме
 - Создавать задачи больше 4-6 часов работы
 
-### Параллельная разработка задач (до 3 одновременно)
+### Параллельная разработка задач (до 5 одновременно)
 
-✅ **МОЖНО разрабатывать до 3 задач параллельно:**
+✅ **МОЖНО запускать до 5 агентов параллельно:**
 - У задач **нет зависимостей** друг от друга
 - Каждая задача проходит **ПОЛНЫЙ цикл** разработки
 - Test + Review для всех задач запускаются параллельно
 - Verifier — последовательно для каждой задачи
 
 ❌ **ЗАПРЕЩЕНО:**
-- Разрабатывать более 3 задач параллельно
+- Запускать более 5 агентов одновременно
 - Игнорировать зависимости между задачами
+
+---
+
+## ⚠️ ОБРАБОТКА ОШИБОК ПРИ ЗАПУСКЕ АГЕНТОВ
+
+### Типичные ошибки
+
+| Ошибка | Признак | Решение |
+|--------|---------|---------|
+| **Empty result** | Агент вернул только ID или пустую строку | Retry с exponential backoff |
+| **Rate limit** | Ошибка API, timeout | Подождать 30-60 сек, retry |
+| **Agent crash** | TaskOutput вернул ошибку | Retry до 3 раз |
+| **Invalid output** | Артефакт не создан или пустой | Retry с уточнением промпта |
+
+### Функция безопасного запуска агента
+
+```python
+def safe_launch_agent(subagent_type, prompt, max_retries=3, base_delay=30):
+    """
+    Безопасный запуск агента с обработкой ошибок и retry.
+
+    Returns:
+        str: Результат работы агента или None после всех попыток
+    """
+    import time
+
+    for attempt in range(max_retries):
+        try:
+            # Запускаем агент
+            task = Task(
+                subagent_type=subagent_type,
+                prompt=prompt
+            )
+
+            # Ждём результат с timeout
+            result = TaskOutput(
+                task_id=task["id"],
+                block=True,
+                timeout=600000  # 10 минут
+            )
+
+            # Проверяем валидность результата
+            if result is None or result.strip() == "" or len(result) < 100:
+                print(f"⚠️ Попытка {attempt + 1}: агент вернул пустой или короткий результат")
+
+                # Exponential backoff
+                delay = base_delay * (2 ** attempt)
+                print(f"   Ожидание {delay} сек перед retry...")
+                time.sleep(delay)
+                continue
+
+            # Проверяем что артефакт создан (если применимо)
+            if "ROADMAP" in prompt or "REPORT" in prompt:
+                # Проверяем создание файла
+                expected_files = extract_expected_files(prompt)
+                for filepath in expected_files:
+                    if not file_exists(filepath):
+                        print(f"⚠️ Файл не создан: {filepath}")
+                        delay = base_delay * (2 ** attempt)
+                        time.sleep(delay)
+                        continue
+
+            return result
+
+        except Exception as e:
+            error_msg = str(e).lower()
+
+            if "rate limit" in error_msg or "429" in error_msg:
+                print(f"⚠️ Rate limit, ожидание 60 сек...")
+                time.sleep(60)
+                continue
+
+            if "timeout" in error_msg:
+                print(f"⚠️ Timeout, retry...")
+                time.sleep(30)
+                continue
+
+            print(f"❌ Ошибка агента: {e}")
+            delay = base_delay * (2 ** attempt)
+            time.sleep(delay)
+
+    print(f"❌ Агент не смог выполнить задачу после {max_retries} попыток")
+    return None
+```
+
+### Обработка для TDD Planner
+
+```python
+def run_tdd_planner_with_retry(task, feature_path, max_retries=3):
+    """Запуск TDD Planner с обработкой ошибок."""
+
+    for attempt in range(max_retries):
+        result = safe_launch_agent(
+            subagent_type="tdd-planner",
+            prompt=f"""
+Создай TDD roadmap для задачи:
+
+Task ID: {task['id']}
+Task Name: {task['name']}
+Task Description: {task['description']}
+Domain: {task['domain']}
+Dependencies: {task['dependencies']}
+Feature Path: {feature_path}
+
+⚠️ ОБЯЗАТЕЛЬНО:
+1. Создай файл docs/roadmaps/{feature_path}ROADMAP_TASKS_{task['id']}.md
+2. Убедись что файл не пустой
+3. Сделай git commit
+
+После создания — подтверди полный путь к созданному файлу.
+""",
+            max_retries=1  # Однократный retry внутри safe_launch
+        )
+
+        if result is None or result.strip() == "":
+            print(f"⚠️ TDD Planner для {task['id']}: пустой результат (попытка {attempt + 1})")
+            time.sleep(30 * (2 ** attempt))
+            continue
+
+        # Проверяем что roadmap создан
+        roadmap_path = f"docs/roadmaps/{feature_path}ROADMAP_TASKS_{task['id']}.md"
+        if file_exists(roadmap_path) and file_size(roadmap_path) > 500:
+            print(f"✅ Roadmap создан: {roadmap_path}")
+            return True
+        else:
+            print(f"⚠️ Roadmap не найден или пуст: {roadmap_path}")
+            time.sleep(30)
+
+    # Все попытки исчерпаны
+    print(f"❌ TDD Planner не смог создать roadmap для {task['id']}")
+    log_failed_task(task['id'], "tdd-planner", "empty result after retries")
+    return False
+```
+
+### Логирование неудачных задач
+
+```python
+def log_failed_task(task_id, agent_type, error_reason):
+    """Сохранить информацию о неудачной задаче для ручной обработки."""
+
+    log_entry = f"""
+## Failed Task: {task_id}
+- Agent: {agent_type}
+- Error: {error_reason}
+- Timestamp: {datetime.now()}
+- Action: MANUAL REVIEW REQUIRED
+"""
+
+    append_to_file(f"docs/project/{FEATURE_PATH}FAILED_TASKS.md", log_entry)
+```
+
+### Проверка после этапа TDD планирования
+
+```python
+def verify_tdd_planning_complete(tasks, feature_path):
+    """Проверить что все roadmap созданы."""
+
+    failed_tasks = []
+
+    for task in tasks:
+        roadmap_path = f"docs/roadmaps/{feature_path}ROADMAP_TASKS_{task['id']}.md"
+
+        if not file_exists(roadmap_path):
+            failed_tasks.append(task['id'])
+        elif file_size(roadmap_path) < 500:
+            failed_tasks.append(f"{task['id']} (empty/small)")
+
+    if failed_tasks:
+        print(f"⚠️ Roadmap не созданы для задач: {', '.join(failed_tasks)}")
+        return False
+
+    return True
+```
 
 ---
 
@@ -304,21 +531,29 @@ for task in group:
 ```
 docs/
 ├── project/              # Артефакты уровня фичи
-│   └── TASKS_INDEX.md          # Декомпозиция фичи на задачи
+│   └── {FEATURE_PATH}/   # Фичевый путь (может быть пустым)
+│       └── TASKS_INDEX.md          # Декомпозиция фичи на задачи
 │
 ├── roadmaps/             # TDD roadmaps для задач фичи
-│   ├── ROADMAP_TASKS_<feature>_<task1>.md
-│   ├── ROADMAP_TASKS_<feature>_<task2>.md
-│   └── ...
+│   └── {FEATURE_PATH}/   # Фичевый путь (может быть пустым)
+│       ├── ROADMAP_TASKS_<feature>_<task1>.md
+│       ├── ROADMAP_TASKS_<feature>_<task2>.md
+│       └── ...
 │
 └── develop/              # Артефакты разработки задач
-    └── <FEATURE>/        # Артефакты фичи
-        └── <TASK>/       # Артефакты задачи
-            ├── IMPLEMENTATION_REPORT.md
-            ├── TEST_REPORT.md
-            ├── CODE_REVIEW.md
-            └── FEATURE_VERIFICATION.md
+    └── {FEATURE_PATH}/   # Фичевый путь (может быть пустым)
+        └── <FEATURE>/        # Артефакты фичи
+            └── <TASK>/       # Артефакты задачи
+                ├── IMPLEMENTATION_REPORT.md
+                ├── TEST_REPORT.md
+                ├── CODE_REVIEW.md
+                └── FEATURE_VERIFICATION.md
 ```
+
+**Примеры:**
+- `FEATURE_PATH = ""` → `docs/project/TASKS_INDEX.md`, `docs/roadmaps/...`, `docs/develop/...`
+- `FEATURE_PATH = "features/auth/"` → `docs/project/features/auth/TASKS_INDEX.md`
+- `FEATURE_PATH = "modules/user/"` → `docs/roadmaps/modules/user/...`, `docs/develop/modules/user/...`
 
 ---
 
@@ -354,22 +589,22 @@ feature/<feature-name>
 
 ```python
 # Читаем вопросы
-questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
+questions = parse_clarification_needed(f"docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md")
 
 # Задаем пользователю
 user_answers = AskUserQuestion(questions=questions["Вопросы"], ...)
 
 # Создаём файл с ответами
-create_file("docs/project/USER_ANSWERS.md", user_answers)
+create_file(f"docs/project/{FEATURE_PATH}USER_ANSWERS.md", user_answers)
 
 # Удаляем CLARIFICATION_NEEDED.md
-remove("docs/project/CLARIFICATION_NEEDED.md")
+remove(f"docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md")
 
 # Перезапускаем агента с ответами
 Task(subagent_type="...", prompt="ПЕРЕЗАПУСК С ОТВЕТАМИ...")
 
 # Удаляем USER_ANSWERS.md
-remove("docs/project/USER_ANSWERS.md")
+remove(f"docs/project/{FEATURE_PATH}USER_ANSWERS.md")
 ```
 
 ---
@@ -387,7 +622,7 @@ remove("docs/project/USER_ANSWERS.md")
 - Архитектура: {architecture_summary}
 - Coding conventions: {conventions}
 
-Roadmap: docs/roadmaps/ROADMAP_TASKS_{feature}_{task_id}.md
+Roadmap: docs/roadmaps/{FEATURE_PATH}ROADMAP_TASKS_{feature}_{task_id}.md
 
 Выполни:
 1. Изучи существующий код в проекте
@@ -396,7 +631,7 @@ Roadmap: docs/roadmaps/ROADMAP_TASKS_{feature}_{task_id}.md
 4. Создай IMPLEMENTATION_REPORT.md
 ```
 
-**Выход:** `docs/develop/<FEATURE>/<TASK>/IMPLEMENTATION_REPORT.md` + исходный код
+**Выход:** `docs/develop/{FEATURE_PATH}<FEATURE>/<TASK>/IMPLEMENTATION_REPORT.md` + исходный код
 
 ---
 
@@ -440,7 +675,7 @@ Roadmap: docs/roadmaps/ROADMAP_TASKS_{feature}_{task_id}.md
 Создай FEATURE_VERIFICATION.md с итоговым score.
 ```
 
-**Выход:** `docs/develop/<FEATURE>/<TASK>/FEATURE_VERIFICATION.md`
+**Выход:** `docs/develop/{FEATURE_PATH}<FEATURE>/<TASK>/FEATURE_VERIFICATION.md`
 
 ---
 
@@ -469,7 +704,7 @@ if score >= 9:
     # ШАГ 2: Коммит артефактов задачи
     # ─────────────────────────────────────────────────────────────────
     bash_command(f"""
-        git add docs/develop/{FEATURE}/{TASK_ID}/
+        git add docs/develop/{FEATURE_PATH}{FEATURE}/{TASK_ID}/
         git commit -m "feat: {TASK_NAME}
 
         - Implementation: developer-agent
@@ -487,18 +722,43 @@ else:
 
 ## 🚫 ЗАПРЕЩЕНО
 
-❌ **НЕПРАВИЛЬНО #1** (все агенты параллельно):
+❌ **НЕПРАВИЛЬНО #1** (более 5 агентов параллельно):
 ```python
-Task(developer-agent, ...)
-Task(test-engineer, ...)
-Task(code-reviewer, ...)
-Task(feature-verifier, ...)
+# 10 агентов одновременно — ПРЕВЫШЕНИЕ ЛИМИТА
+dev_1 = Task(developer-agent, ...)
+dev_2 = Task(developer-agent, ...)
+...
+dev_6 = Task(developer-agent, ...)  # ❌ Лимит 5!
 ```
 
-❌ **НЕПРАВИЛЬНО #2** (только developer):
+❌ **НЕПРАВИЛЬНО #2** (все агенты параллельно без порядка):
+```python
+Task(developer-agent, ...)
+Task(test-engineer, ...)      # ❌ Test до завершения developer
+Task(code-reviewer, ...)     # ❌ Review до завершения developer
+Task(feature-verifier, ...)  # ❌ Verifier до завершения test+review
+```
+
+❌ **НЕПРАВИЛЬНО #3** (только developer):
 ```python
 Task(developer-agent, ...)
 # Создал только IMPLEMENTATION_REPORT и "устал"
+# ❌ Пропущены test, review, verifier
+```
+
+❌ **НЕПРАВИЛЬНО #4** (игнорирование пустых результатов):
+```python
+result = Task(subagent_type="tdd-planner", ...)
+# result = None или пустая строка
+# ❌ Не проверили результат, продолжаем как будто всё ок
+```
+
+❌ **НЕПРАВИЛЬНО #5** (нет retry при ошибках):
+```python
+try:
+    TaskOutput(task_id=task["id"], block=True)
+except:
+    pass  # ❌ Просто игнорируем ошибку, нет retry или логирования
 ```
 
 ---
@@ -508,49 +768,116 @@ Task(developer-agent, ...)
 ### Правильный запуск (одна задача)
 
 ```python
-# Developer (последовательно)
-task_dev = Task(subagent_type="developer-agent", prompt="...")
-result_dev = TaskOutput(task_id=task_dev["id"], block=True, timeout=600000)
+# Developer (последовательно) с обработкой ошибок
+result_dev = safe_launch_agent(
+    subagent_type="developer-agent",
+    prompt="..."
+)
+if result_dev is None:
+    log_failed_task(TASK_ID, "developer-agent", "empty result")
+    # Retry или skip
 
-# Test + Review (ПАРАЛЛЕЛЬНО)
+# Test + Review (ПАРАЛЛЕЛЬНО, 2 агента < 5)
 task_test = Task(subagent_type="test-engineer", prompt="...")
 task_review = Task(subagent_type="code-reviewer", prompt="...")
 
 result_test = TaskOutput(task_id=task_test["id"], block=True, timeout=600000)
 result_review = TaskOutput(task_id=task_review["id"], block=True, timeout=600000)
 
+# Проверка результатов
+if result_test is None or result_test.strip() == "":
+    log_failed_task(TASK_ID, "test-engineer", "empty result")
+
 # Verifier (последовательно)
-task_verify = Task(subagent_type="feature-verifier", prompt="...")
-result_verify = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000)
+result_verify = safe_launch_agent(
+    subagent_type="feature-verifier",
+    prompt="..."
+)
 ```
 
-### Правильный запуск (3 задачи параллельно)
+### Правильный запуск (до 5 задач параллельно)
 
 ```python
-# Developer для всех (параллельно)
-dev_1 = Task(developer-agent, "...T-001...")
-dev_2 = Task(developer-agent, "...T-002...")
-dev_3 = Task(developer-agent, "...T-003...")
+MAX_PARALLEL = 5
+tasks = [T_001, T_002, T_003, T_004, T_005]  # До 5 задач
 
-TaskOutput(task_id=dev_1["id"], block=True)
-TaskOutput(task_id=dev_2["id"], block=True)
-TaskOutput(task_id=dev_3["id"], block=True)
+# Developer для всех (параллельно, до 5 агентов)
+dev_tasks = []
+for task in tasks[:MAX_PARALLEL]:
+    dev_tasks.append({
+        "task_id": task["id"],
+        "agent": Task(subagent_type="developer-agent", prompt=f"...{task['id']}...")
+    })
 
-# Test + Review для всех (параллельно)
-test_1 = Task(test-engineer, "...T-001...")
-review_1 = Task(code-reviewer, "...T-001...")
-test_2 = Task(test-engineer, "...T-002...")
-review_2 = Task(code-reviewer, "...T-002...")
-# ...
+# Ждём завершения с обработкой ошибок
+failed_dev_tasks = []
+for dev_task in dev_tasks:
+    try:
+        result = TaskOutput(task_id=dev_task["agent"]["id"], block=True, timeout=600000)
+        if result is None or result.strip() == "":
+            failed_dev_tasks.append(dev_task["task_id"])
+    except Exception as e:
+        log_failed_task(dev_task["task_id"], "developer-agent", str(e))
+        failed_dev_tasks.append(dev_task["task_id"])
 
-TaskOutput(task_id=test_1["id"], block=True)
-# ... все 6 TaskOutput
+# Test + Review для успешных задач (по 2 агента на задачу)
+# Но общий лимит 5 — значит обрабатываем по 2 задачи за раз
+successful_tasks = [t for t in tasks if t["id"] not in failed_dev_tasks]
 
-# Verifier (последовательно)
-verify_1 = Task(feature-verifier, "...T-001...")
-TaskOutput(task_id=verify_1["id"], block=True)
-verify_2 = Task(feature-verifier, "...T-002...")
-# ...
+for batch in chunks(successful_tasks, 2):  # 2 задачи * 2 агента = 4 < 5
+    test_review_agents = []
+    for task in batch:
+        test_review_agents.append(Task(subagent_type="test-engineer", prompt=f"...{task['id']}..."))
+        test_review_agents.append(Task(subagent_type="code-reviewer", prompt=f"...{task['id']}..."))
+
+    for agent in test_review_agents:
+        TaskOutput(task_id=agent["id"], block=True, timeout=600000)
+
+# Verifier (последовательно для каждой задачи)
+for task in successful_tasks:
+    verify = Task(subagent_type="feature-verifier", prompt=f"...{task['id']}...")
+    result = TaskOutput(task_id=verify["id"], block=True, timeout=600000)
+
+    if result:
+        score = extract_score(result)
+        if score >= 9:
+            commit_task(task)
+```
+
+### Правильный запуск TDD Planner (батчами по 5)
+
+```python
+MAX_PARALLEL = 5
+tasks = parse_tasks("docs/project/TASKS_INDEX.md")
+
+# Обрабатываем батчами
+for batch_start in range(0, len(tasks), MAX_PARALLEL):
+    batch = tasks[batch_start:batch_start + MAX_PARALLEL]
+
+    # Запускаем до 5 TDD Planner параллельно
+    planner_tasks = []
+    for task in batch:
+        planner_tasks.append({
+            "task_id": task["id"],
+            "agent": Task(subagent_type="tdd-planner", prompt=f"""
+Создай TDD roadmap для задачи: {task['id']}
+...
+""")
+        })
+
+    # Ждём завершения всех в батче
+    for pt in planner_tasks:
+        try:
+            result = TaskOutput(task_id=pt["agent"]["id"], block=True, timeout=600000)
+
+            # Проверяем что roadmap создан
+            roadmap_path = f"docs/roadmaps/ROADMAP_TASKS_{pt['task_id']}.md"
+            if not file_exists(roadmap_path):
+                log_failed_task(pt["task_id"], "tdd-planner", "roadmap not created")
+                # Retry для этой задачи
+                retry_tdd_planner(pt["task_id"])
+        except Exception as e:
+            log_failed_task(pt["task_id"], "tdd-planner", str(e))
 ```
 
 ---
@@ -609,10 +936,11 @@ git branch -d feature/<feature-name>
 Когда пользователь запускает `/feature-developer`:
 
 1. **Получите описание фичи** от пользователя
-2. **Этап 1:** Декомпозиция на задачи (feature-decomposer)
-3. **Этап 2:** TDD планирование (tdd-planner для каждой задачи)
-4. **Этап 3:** Создание ветки `feature/<name>`
-5. **Этап 4:** Реализация задач (последовательно или параллельно)
-6. **Merge** в основную ветку
+2. **Запросите фичевый путь** `{FEATURE_PATH}` через AskUserQuestion
+3. **Этап 1:** Декомпозиция на задачи (feature-decomposer) → `docs/project/{FEATURE_PATH}TASKS_INDEX.md`
+4. **Этап 2:** TDD планирование (tdd-planner для каждой задачи) → `docs/roadmaps/{FEATURE_PATH}ROADMAP_TASKS_*.md`
+5. **Этап 3:** Создание ветки `feature/<name>`
+6. **Этап 4:** Реализация задач (последовательно или параллельно) → `docs/develop/{FEATURE_PATH}<FEATURE>/`
+7. **Merge** в основную ветку
 
 ---

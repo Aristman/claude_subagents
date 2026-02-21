@@ -45,39 +45,78 @@ Agent = Role + Profile Awareness + Artifact Contracts
 
 Для всех execution-агентов действует единое правило:
 
-- Agent profiles MUST be loaded from:
-  `~/.claude/agents/profiles/<category>/AGENT_PROFILE_<profile>.md`
+- Agent profiles MUST be loaded from `~/.claude/agents/profiles/`
+- Profiles may be located in subdirectories by category OR in root directory
 - Profiles MUST NOT be loaded from project workspace
 - Absence or unreadability of profile is a **fatal error**
 - Profiles are selected via:
   `Feature.Domain → PROJECT_PROFILE.domains`
 
-**Категории профилей:**
+### Profile Directory Structure
+
+```
+~/.claude/agents/profiles/
+├── AGENT_PROFILE_*.md              # Root-level profiles
+├── backend/
+│   ├── AGENT_PROFILE_*.md          # Backend profiles
+│   └── BACKEND_PROFILES.md         # Backend registry
+└── rust/
+    ├── AGENT_PROFILE_*.md          # Rust-specific profiles
+    └── RUST_PROFILES.md            # Rust registry
+```
+
+### Profile Search Order
+
+При загрузке профиля агенты ДОЛЖНЫ искать в следующем порядке:
+
+1. **Category-specific subdirectory** (если категория известна):
+   - `~/.claude/agents/profiles/backend/AGENT_PROFILE_<profile>.md`
+   - `~/.claude/agents/profiles/rust/AGENT_PROFILE_<profile>.md`
+
+2. **Root profiles directory**:
+   - `~/.claude/agents/profiles/AGENT_PROFILE_<profile>.md`
+
+3. **Fallback mappings** (если профиль не найден):
+   - `mobile-ios` → `multiplatform`
+   - `mobile-android` → `multiplatform`
+   - `rust` → `backend-base`
+
+4. **Fatal error** если профиль не найден после всех попыток
+
+### Profile Categories
 
 | Категория | Путь | Реестр |
 |-----------|------|--------|
+| Root | `~/.claude/agents/profiles/AGENT_PROFILE_*.md` | — |
 | Backend | `~/.claude/agents/profiles/backend/AGENT_PROFILE_*.md` | `backend/BACKEND_PROFILES.md` |
 | Rust | `~/.claude/agents/profiles/rust/AGENT_PROFILE_*.md` | `rust/RUST_PROFILES.md` |
-| Mobile | `~/.claude/agents/profiles/AGENT_PROFILE_mobile-*.md` | (будет добавлен) |
-| Web | `~/.claude/agents/profiles/AGENT_PROFILE_web.md` | (будет добавлен) |
-| CLI | `~/.claude/agents/profiles/AGENT_PROFILE_cli.md` | (будет добавлен) |
 
-**Доступные backend профили:**
+### Available Profiles
+
+**Root-level профили:**
+- `cli` — CLI приложения
+- `web` — Web приложения
+- `multiplatform` — Kotlin Multiplatform
+- `mobile-android` — Android (fallback to multiplatform)
+- `mobile-ios` — iOS (fallback to multiplatform)
+- `SIMCORE` — SimCore ядро
+- `EXTERNAL-INTEGRATION` — Внешние интеграции
+
+**Backend профили:**
 - `backend-base` — базовый профиль для всех backend стеков
 - `spring-boot` — Kotlin + Spring Boot
 - `nodejs` — TypeScript + Node.js (Express/Fastify)
 - `python` — Python + Django/FastAPI
 - `rust` — Rust + Actix/Axum
 
-**Доступные Rust профили:**
-- `rust-simcore` — Ядро симуляции (Bevy ECS)
+**Rust профили:**
 - `rust-ai-engineer` — AI система (neural networks, genetic algorithm)
-- `rust-gameplay-engineer` — Игровые механики
-- `rust-tauri-backend` — Backend для Tauri приложений
-- `rust-network-engineer` — Сетевой слой
-- `rust-sqlite-storage` — Локальное хранение (SQLite)
 - `rust-api-integration` — Интеграция с внешними API
 - `rust-document-export` — Экспорт документов
+- `rust-gameplay-engineer` — Игровые механики
+- `rust-network-engineer` — Сетевой слой
+- `rust-sqlite-storage` — Локальное хранение (SQLite)
+- `rust-tauri-backend` — Backend для Tauri приложений
 
 ---
 
@@ -483,8 +522,14 @@ Agent = Role + Profile Awareness + Artifact Contracts
 ## Статус документа
 
 - **Статус:** Production-ready
-- **Версия:** 9.0
+- **Версия:** 10.0
 - **Архитектурный уровень:** system / contract
+- **Изменения v10.0:**
+  - Добавлена структура директорий профилей (Profile Directory Structure)
+  - Добавлен порядок поиска профилей (Profile Search Order)
+  - Обновлён Global Profile Rule для поддержки root-level и category-specific профилей
+  - Добавлены fallback mappings для профилей
+  - Добавлен список root-level профилей (cli, web, multiplatform и др.)
 - **Изменения v9.0:**
   - Добавлена категория Rust профилей
   - Создана папка `rust/` для специализированных Rust профилей

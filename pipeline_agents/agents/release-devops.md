@@ -52,8 +52,38 @@ You MUST:
 
 - read `PROJECT_PROFILE.md`
 - resolve all profiles involved via project domains
-- load each required profile from:
-  `~/.claude/agents/profiles/AGENT_PROFILE_<profile>.md`
+- load each required profile using search order below
+
+### Profile Directory Structure
+
+```
+~/.claude/agents/profiles/
+├── AGENT_PROFILE_*.md              # Root-level profiles (cli, web, mobile, multiplatform)
+├── backend/
+│   ├── AGENT_PROFILE_*.md          # Backend profiles (spring-boot, nodejs, python, rust)
+│   └── BACKEND_PROFILES.md         # Backend registry
+└── rust/
+    ├── AGENT_PROFILE_*.md          # Rust-specific profiles (ai, game, network, etc.)
+    └── RUST_PROFILES.md            # Rust registry
+```
+
+### Profile Loading Process
+
+1. Extract profile values from `PROJECT_PROFILE.domains`
+2. For each required profile, search in this order:
+   ```bash
+   # Step 1: Try category-specific subdirectory (if category is known)
+   ls ~/.claude/agents/profiles/backend/AGENT_PROFILE_<profile>.md 2>/dev/null
+   ls ~/.claude/agents/profiles/rust/AGENT_PROFILE_<profile>.md 2>/dev/null
+
+   # Step 2: Try root profiles directory
+   ls ~/.claude/agents/profiles/AGENT_PROFILE_<profile>.md 2>/dev/null
+   ```
+3. If file doesn't exist, try fallback mappings:
+   - `mobile-ios` → `multiplatform`
+   - `mobile-android` → `multiplatform`
+   - `rust` → `backend-base`
+4. If no profile is found, FAIL with explicit error
 
 ### Profile Loading Rule
 

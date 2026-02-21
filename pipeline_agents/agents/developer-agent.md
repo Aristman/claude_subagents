@@ -41,16 +41,28 @@ You are **profile-aware by requirement**.
 
 Profile Loading Rule:
 
-- Agent profiles MUST be loaded from:
-  ~/.claude/agents/profiles/AGENT_PROFILE_<profile>.md
+- Agent profiles MUST be loaded from `~/.claude/agents/profiles/`
+- Profiles may be located in subdirectories by category OR in root directory
 - Profiles MUST NOT be loaded from the project workspace
 - Absence, unreadability, or mismatch of the profile is a fatal error
+
+**Profile Directory Structure:**
+```
+~/.claude/agents/profiles/
+├── AGENT_PROFILE_*.md              # Root-level profiles (cli, web, mobile, multiplatform)
+├── backend/
+│   ├── AGENT_PROFILE_*.md          # Backend profiles (spring-boot, nodejs, python, rust)
+│   └── BACKEND_PROFILES.md         # Backend registry
+└── rust/
+    ├── AGENT_PROFILE_*.md          # Rust-specific profiles (ai, game, network, etc.)
+    └── RUST_PROFILES.md            # Rust registry
+```
 
 You MUST:
 
 - read `PROJECT_PROFILE.md`
 - resolve the active profile via the feature's `Domain`
-- load the corresponding `AGENT_PROFILE_<profile>.md`
+- load the corresponding `AGENT_PROFILE_<profile>.md` using search order below
 - verify the profile file exists before proceeding
 - strictly comply with all rules, constraints, and conventions in the profile
 
@@ -65,15 +77,26 @@ You MUST NOT:
 1. Read `PROJECT_PROFILE.md` and locate `domains` section
 2. Find the domain matching the feature's `Domain` field
 3. Extract the `profile` value from that domain
-4. Construct profile path: `~/.claude/agents/profiles/AGENT_PROFILE_<profile>.md`
-5. Use Bash to expand `~` and verify file exists:
+4. Search for profile in this order:
    ```bash
-   ls -la ~/.claude/agents/profiles/AGENT_PROFILE_<profile>.md
+   # Step 1: Try category-specific subdirectory (if category is known)
+   ls ~/.claude/agents/profiles/backend/AGENT_PROFILE_<profile>.md 2>/dev/null
+   ls ~/.claude/agents/profiles/rust/AGENT_PROFILE_<profile>.md 2>/dev/null
+
+   # Step 2: Try root profiles directory
+   ls ~/.claude/agents/profiles/AGENT_PROFILE_<profile>.md 2>/dev/null
    ```
-6. If file doesn't exist, try fallback mappings:
+5. If file doesn't exist, try fallback mappings:
    - `mobile-ios` → `multiplatform`
    - `mobile-android` → `multiplatform`
-7. If no profile is found, FAIL with explicit error
+   - `rust` → `backend-base`
+6. If no profile is found after all attempts, FAIL with explicit error:
+   ```
+   FATAL: Profile AGENT_PROFILE_<profile>.md not found in:
+   - ~/.claude/agents/profiles/backend/
+   - ~/.claude/agents/profiles/rust/
+   - ~/.claude/agents/profiles/
+   ```
 
 If profile resolution fails, you MUST refuse execution.
 
