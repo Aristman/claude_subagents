@@ -44,10 +44,32 @@ description: Запускает разработку фичи в существ�
 
 **Действия:**
 1. Получить описание фичи от пользователя
-2. Понять границы фичи (что входит, что нет)
-3. Определить текущую ветку разработки
+2. **Запросить фичевый путь для артефактов** через AskUserQuestion
+   - Может быть пустым (артефакты в `docs/project/`, `docs/roadmaps/`, `docs/develop/`)
+   - Может быть путём вида `features/auth/`, `modules/user/`, `episodes/season1/` и т.д.
+   - Путь добавляется внутри `project/{FEATURE_PATH}`, `roadmaps/{FEATURE_PATH}`, `develop/{FEATURE_PATH}`
+3. Понять границы фичи (что входит, что нет)
+4. Определить текущую ветку разработки
 
-**Выход:** Описание фичи в формате естественного языка
+**Пример запроса пути:**
+```python
+AskUserQuestion(
+    questions=[{
+        "question": "Укажи фичевый путь для сохранения артефактов (например: features/auth/, modules/user/). Оставь пустым для сохранения в docs/project/, docs/roadmaps/ без подпути:",
+        "header": "Feature Path",
+        "options": [
+            {"label": "Пустой (docs/project/, docs/roadmaps/)", "description": "Артефакты в корне project/, roadmaps/"},
+            {"label": "features/<name>/", "description": "Артефакты в project/features/<name>/, roadmaps/features/<name>/"},
+            {"label": "modules/<name>/", "description": "Артефакты в project/modules/<name>/, roadmaps/modules/<name>/"}
+        ],
+        "multiSelect": False
+    }]
+)
+```
+
+**Выход:**
+- Описание фичи в формате естественного языка
+- `{FEATURE_PATH}` — фичевый путь (с trailing slash или пустой)
 
 ---
 
@@ -69,11 +91,16 @@ Task(
 1. Разбей фичу на 3-10 задач
 2. Каждая задача = 2-4 часа работы
 3. Задачи должны быть независимыми (минимум зависимостей)
-4. Создай TASKS_INDEX.md в docs/project/
+4. Создай TASKS_INDEX.md в docs/project/{FEATURE_PATH}
 
-Формат TASKS_INDEX.md:
+**Формат TASKS_INDEX.md:**
 ```markdown
 # Tasks Index for Feature: {feature_name}
+
+## Feature Info
+- Feature Name: ...
+- Feature Description: ...
+- Feature Path: {FEATURE_PATH}  <!-- Фичевый путь для артефактов -->
 
 ## Feature Info
 - Feature Name: ...
@@ -98,20 +125,20 @@ Task(
 ```
 
 **Обработка вопросов:**
-Если agent создал `docs/project/CLARIFICATION_NEEDED.md`:
+Если agent создал `docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md`:
 ```python
-if exists("docs/project/CLARIFICATION_NEEDED.md"):
-    questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
+if exists(f"docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md"):
+    questions = parse_clarification_needed(f"docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md")
     user_answers = AskUserQuestion(questions=questions["Вопросы"], ...)
-    create_file("docs/project/USER_ANSWERS.md", user_answers)
-    remove("docs/project/CLARIFICATION_NEEDED.md")
+    create_file(f"docs/project/{FEATURE_PATH}USER_ANSWERS.md", user_answers)
+    remove(f"docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md")
 
     # Перезапускаем агента с ответами
     Task(subagent_type="feature-decomposer", prompt="ПЕРЕЗАПУСК С ОТВЕТАМИ...")
-    remove("docs/project/USER_ANSWERS.md")
+    remove(f"docs/project/{FEATURE_PATH}USER_ANSWERS.md")
 ```
 
-**Выход:** `docs/project/TASKS_INDEX.md`
+**Выход:** `docs/project/{FEATURE_PATH}TASKS_INDEX.md`
 
 ---
 
@@ -123,7 +150,7 @@ if exists("docs/project/CLARIFICATION_NEEDED.md"):
 
 ```python
 # Читаем TASKS_INDEX.md
-tasks_index = read_file("docs/project/TASKS_INDEX.md")
+tasks_index = read_file(f"docs/project/{FEATURE_PATH}TASKS_INDEX.md")
 tasks = parse_tasks(tasks_index)
 
 # Для каждой задачи создаём roadmap
@@ -138,8 +165,9 @@ Task Name: {task['name']}
 Task Description: {task['description']}
 Domain: {task['domain']}
 Dependencies: {task['dependencies']}
+Feature Path: {FEATURE_PATH}
 
-Создай ROADMAP_TASKS_{feature}_{task_id}.md в docs/roadmaps/
+Создай ROADMAP_TASKS_{feature}_{task_id}.md в docs/roadmaps/{FEATURE_PATH}
 
 После создания — git commit.
 """
@@ -147,7 +175,7 @@ Dependencies: {task['dependencies']}
     # Ждём завершения перед следующей задачей
 ```
 
-**Выход:** `docs/roadmaps/ROADMAP_TASKS_<feature>_<task>.md` для каждой задачи
+**Выход:** `docs/roadmaps/{FEATURE_PATH}ROADMAP_TASKS_<feature>_<task>.md` для каждой задачи
 
 ---
 
@@ -304,21 +332,29 @@ for task in group:
 ```
 docs/
 ├── project/              # Артефакты уровня фичи
-│   └── TASKS_INDEX.md          # Декомпозиция фичи на задачи
+│   └── {FEATURE_PATH}/   # Фичевый путь (может быть пустым)
+│       └── TASKS_INDEX.md          # Декомпозиция фичи на задачи
 │
 ├── roadmaps/             # TDD roadmaps для задач фичи
-│   ├── ROADMAP_TASKS_<feature>_<task1>.md
-│   ├── ROADMAP_TASKS_<feature>_<task2>.md
-│   └── ...
+│   └── {FEATURE_PATH}/   # Фичевый путь (может быть пустым)
+│       ├── ROADMAP_TASKS_<feature>_<task1>.md
+│       ├── ROADMAP_TASKS_<feature>_<task2>.md
+│       └── ...
 │
 └── develop/              # Артефакты разработки задач
-    └── <FEATURE>/        # Артефакты фичи
-        └── <TASK>/       # Артефакты задачи
-            ├── IMPLEMENTATION_REPORT.md
-            ├── TEST_REPORT.md
-            ├── CODE_REVIEW.md
-            └── FEATURE_VERIFICATION.md
+    └── {FEATURE_PATH}/   # Фичевый путь (может быть пустым)
+        └── <FEATURE>/        # Артефакты фичи
+            └── <TASK>/       # Артефакты задачи
+                ├── IMPLEMENTATION_REPORT.md
+                ├── TEST_REPORT.md
+                ├── CODE_REVIEW.md
+                └── FEATURE_VERIFICATION.md
 ```
+
+**Примеры:**
+- `FEATURE_PATH = ""` → `docs/project/TASKS_INDEX.md`, `docs/roadmaps/...`, `docs/develop/...`
+- `FEATURE_PATH = "features/auth/"` → `docs/project/features/auth/TASKS_INDEX.md`
+- `FEATURE_PATH = "modules/user/"` → `docs/roadmaps/modules/user/...`, `docs/develop/modules/user/...`
 
 ---
 
@@ -354,22 +390,22 @@ feature/<feature-name>
 
 ```python
 # Читаем вопросы
-questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
+questions = parse_clarification_needed(f"docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md")
 
 # Задаем пользователю
 user_answers = AskUserQuestion(questions=questions["Вопросы"], ...)
 
 # Создаём файл с ответами
-create_file("docs/project/USER_ANSWERS.md", user_answers)
+create_file(f"docs/project/{FEATURE_PATH}USER_ANSWERS.md", user_answers)
 
 # Удаляем CLARIFICATION_NEEDED.md
-remove("docs/project/CLARIFICATION_NEEDED.md")
+remove(f"docs/project/{FEATURE_PATH}CLARIFICATION_NEEDED.md")
 
 # Перезапускаем агента с ответами
 Task(subagent_type="...", prompt="ПЕРЕЗАПУСК С ОТВЕТАМИ...")
 
 # Удаляем USER_ANSWERS.md
-remove("docs/project/USER_ANSWERS.md")
+remove(f"docs/project/{FEATURE_PATH}USER_ANSWERS.md")
 ```
 
 ---
@@ -387,7 +423,7 @@ remove("docs/project/USER_ANSWERS.md")
 - Архитектура: {architecture_summary}
 - Coding conventions: {conventions}
 
-Roadmap: docs/roadmaps/ROADMAP_TASKS_{feature}_{task_id}.md
+Roadmap: docs/roadmaps/{FEATURE_PATH}ROADMAP_TASKS_{feature}_{task_id}.md
 
 Выполни:
 1. Изучи существующий код в проекте
@@ -396,7 +432,7 @@ Roadmap: docs/roadmaps/ROADMAP_TASKS_{feature}_{task_id}.md
 4. Создай IMPLEMENTATION_REPORT.md
 ```
 
-**Выход:** `docs/develop/<FEATURE>/<TASK>/IMPLEMENTATION_REPORT.md` + исходный код
+**Выход:** `docs/develop/{FEATURE_PATH}<FEATURE>/<TASK>/IMPLEMENTATION_REPORT.md` + исходный код
 
 ---
 
@@ -440,7 +476,7 @@ Roadmap: docs/roadmaps/ROADMAP_TASKS_{feature}_{task_id}.md
 Создай FEATURE_VERIFICATION.md с итоговым score.
 ```
 
-**Выход:** `docs/develop/<FEATURE>/<TASK>/FEATURE_VERIFICATION.md`
+**Выход:** `docs/develop/{FEATURE_PATH}<FEATURE>/<TASK>/FEATURE_VERIFICATION.md`
 
 ---
 
@@ -469,7 +505,7 @@ if score >= 9:
     # ШАГ 2: Коммит артефактов задачи
     # ─────────────────────────────────────────────────────────────────
     bash_command(f"""
-        git add docs/develop/{FEATURE}/{TASK_ID}/
+        git add docs/develop/{FEATURE_PATH}{FEATURE}/{TASK_ID}/
         git commit -m "feat: {TASK_NAME}
 
         - Implementation: developer-agent
@@ -609,10 +645,11 @@ git branch -d feature/<feature-name>
 Когда пользователь запускает `/feature-developer`:
 
 1. **Получите описание фичи** от пользователя
-2. **Этап 1:** Декомпозиция на задачи (feature-decomposer)
-3. **Этап 2:** TDD планирование (tdd-planner для каждой задачи)
-4. **Этап 3:** Создание ветки `feature/<name>`
-5. **Этап 4:** Реализация задач (последовательно или параллельно)
-6. **Merge** в основную ветку
+2. **Запросите фичевый путь** `{FEATURE_PATH}` через AskUserQuestion
+3. **Этап 1:** Декомпозиция на задачи (feature-decomposer) → `docs/project/{FEATURE_PATH}TASKS_INDEX.md`
+4. **Этап 2:** TDD планирование (tdd-planner для каждой задачи) → `docs/roadmaps/{FEATURE_PATH}ROADMAP_TASKS_*.md`
+5. **Этап 3:** Создание ветки `feature/<name>`
+6. **Этап 4:** Реализация задач (последовательно или параллельно) → `docs/develop/{FEATURE_PATH}<FEATURE>/`
+7. **Merge** в основную ветку
 
 ---

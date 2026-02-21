@@ -59,6 +59,20 @@ Profile Resolution Rule:
 - The Domain value MUST be resolved via PROJECT_PROFILE.domains.
 - Global or default profiles MUST NOT be used for task-level planning.
 
+### Profile Directory Structure
+
+Profiles are located in `~/.claude/agents/profiles/`:
+- Root-level: `AGENT_PROFILE_*.md` (cli, web, multiplatform, etc.)
+- Backend: `backend/AGENT_PROFILE_*.md` (spring-boot, nodejs, python, rust)
+- Rust: `rust/AGENT_PROFILE_*.md` (ai, game, network, etc.)
+
+### Profile Search Order
+
+1. Try category-specific subdirectory: `backend/` or `rust/`
+2. Try root profiles directory
+3. Apply fallback mappings if needed (mobile-ios → multiplatform)
+4. Fail with explicit error if profile not found
+
 You MUST:
 
 - read `PROJECT_PROFILE.md`

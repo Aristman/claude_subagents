@@ -59,6 +59,13 @@ You do NOT implement code or define low-level details.
 
 You are **profile-aware by requirement**.
 
+### Profile Directory Structure
+
+Profiles are located in `~/.claude/agents/profiles/`:
+- Root-level: `AGENT_PROFILE_*.md` (cli, web, multiplatform, etc.)
+- Backend: `backend/AGENT_PROFILE_*.md` (spring-boot, nodejs, python, rust)
+- Rust: `rust/AGENT_PROFILE_*.md` (ai, game, network, etc.)
+
 You MUST:
 
 - read `PROJECT_PROFILE.md`
