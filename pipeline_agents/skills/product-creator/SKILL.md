@@ -6,9 +6,17 @@ description: Запускает полный мультиагентный пай
 # PRODUCT_CREATOR — Создание нового продукта
 
 ## Версия
-- version: 3.0.0
+- version: 3.1.0
 - standalone: true
 - purpose: product_creation
+
+## Изменения v3.1.0
+- Добавлена обработка ошибок при запуске агентов (safe_launch_agent)
+- Добавлен retry с exponential backoff для failed агентов
+- Установлен лимит параллельных агентов = 5 (было 3)
+- Добавлена функция log_failed_task для регистрации неудачных задач
+- Добавлена функция verify_tdd_planning_complete для проверки создания roadmap
+- Добавлена функция run_tdd_planner_with_retry для TDD планирования с обработкой ошибок
 
 ---
 
@@ -593,6 +601,180 @@ Dependencies: {dependencies_list}  ← ОБЯЗАТЕЛЬНОЕ ПОЛЕ
 
 **Агенты сами сделают коммит** после создания roadmaps.
 
+---
+
+## ⚠️ ОБРАБОТКА ОШИБОК ПРИ ЗАПУСКЕ АГЕНТОВ
+
+### Типичные ошибки
+
+| Ошибка | Признак | Решение |
+|--------|---------|---------|
+| **Empty result** | Агент вернул только ID или пустую строку | Retry с exponential backoff |
+| **Rate limit** | Ошибка API, timeout | Подождать 30-60 сек, retry |
+| **Agent crash** | TaskOutput вернул ошибку | Retry до 3 раз |
+| **Invalid output** | Артефакт не создан или пустой | Retry с уточнением промпта |
+
+### Функция безопасного запуска агента
+
+```python
+def safe_launch_agent(subagent_type, prompt, max_retries=3, base_delay=30):
+    """
+    Безопасный запуск агента с обработкой ошибок и retry.
+
+    Returns:
+        str: Результат работы агента или None после всех попыток
+    """
+    import time
+
+    for attempt in range(max_retries):
+        try:
+            # Запускаем агент
+            task = Task(
+                subagent_type=subagent_type,
+                prompt=prompt
+            )
+
+            # Ждём результат с timeout
+            result = TaskOutput(
+                task_id=task["id"],
+                block=True,
+                timeout=600000  # 10 минут
+            )
+
+            # Проверяем валидность результата
+            if result is None or result.strip() == "" or len(result) < 100:
+                print(f"⚠️ Попытка {attempt + 1}: агент вернул пустой или короткий результат")
+
+                # Exponential backoff
+                delay = base_delay * (2 ** attempt)
+                print(f"   Ожидание {delay} сек перед retry...")
+                time.sleep(delay)
+                continue
+
+            # Проверяем что артефакт создан (если применимо)
+            if "ROADMAP" in prompt or "REPORT" in prompt:
+                # Проверяем создание файла
+                expected_files = extract_expected_files(prompt)
+                for filepath in expected_files:
+                    if not file_exists(filepath):
+                        print(f"⚠️ Файл не создан: {filepath}")
+                        delay = base_delay * (2 ** attempt)
+                        time.sleep(delay)
+                        continue
+
+            return result
+
+        except Exception as e:
+            error_msg = str(e).lower()
+
+            if "rate limit" in error_msg or "429" in error_msg:
+                print(f"⚠️ Rate limit, ожидание 60 сек...")
+                time.sleep(60)
+                continue
+
+            if "timeout" in error_msg:
+                print(f"⚠️ Timeout, retry...")
+                time.sleep(30)
+                continue
+
+            print(f"❌ Ошибка агента: {e}")
+            delay = base_delay * (2 ** attempt)
+            time.sleep(delay)
+
+    print(f"❌ Агент не смог выполнить задачу после {max_retries} попыток")
+    return None
+```
+
+### Обработка для TDD Planner
+
+```python
+def run_tdd_planner_with_retry(feature, max_retries=3):
+    """Запуск TDD Planner с обработкой ошибок."""
+
+    for attempt in range(max_retries):
+        result = safe_launch_agent(
+            subagent_type="tdd-planner",
+            prompt=f"""
+Создай TDD roadmap для фичи:
+
+Feature ID: {feature['id']}
+Feature Name: {feature['name']}
+Feature Description: {feature['description']}
+Domain: {feature['domain']}
+Dependencies: {feature['dependencies']}
+
+⚠️ ОБЯЗАТЕЛЬНО:
+1. Создай файл docs/roadmaps/ROADMAP_TASKS_{feature['id']}.md
+2. Убедись что файл не пустой
+3. Сделай git commit
+
+После создания — подтверди полный путь к созданному файлу.
+""",
+            max_retries=1  # Однократный retry внутри safe_launch
+        )
+
+        if result is None or result.strip() == "":
+            print(f"⚠️ TDD Planner для {feature['id']}: пустой результат (попытка {attempt + 1})")
+            time.sleep(30 * (2 ** attempt))
+            continue
+
+        # Проверяем что roadmap создан
+        roadmap_path = f"docs/roadmaps/ROADMAP_TASKS_{feature['id']}.md"
+        if file_exists(roadmap_path) and file_size(roadmap_path) > 500:
+            print(f"✅ Roadmap создан: {roadmap_path}")
+            return True
+        else:
+            print(f"⚠️ Roadmap не найден или пуст: {roadmap_path}")
+            time.sleep(30)
+
+    # Все попытки исчерпаны
+    print(f"❌ TDD Planner не смог создать roadmap для {feature['id']}")
+    log_failed_task(feature['id'], "tdd-planner", "empty result after retries")
+    return False
+```
+
+### Логирование неудачных задач
+
+```python
+def log_failed_task(task_id, agent_type, error_reason):
+    """Сохранить информацию о неудачной задаче для ручной обработки."""
+
+    log_entry = f"""
+## Failed Task: {task_id}
+- Agent: {agent_type}
+- Error: {error_reason}
+- Timestamp: {datetime.now()}
+- Action: MANUAL REVIEW REQUIRED
+"""
+
+    append_to_file("docs/project/FAILED_TASKS.md", log_entry)
+```
+
+### Проверка после этапа TDD планирования
+
+```python
+def verify_tdd_planning_complete(features):
+    """Проверить что все roadmap созданы."""
+
+    failed_features = []
+
+    for feature in features:
+        roadmap_path = f"docs/roadmaps/ROADMAP_TASKS_{feature['id']}.md"
+
+        if not file_exists(roadmap_path):
+            failed_features.append(feature['id'])
+        elif file_size(roadmap_path) < 500:
+            failed_features.append(f"{feature['id']} (empty/small)")
+
+    if failed_features:
+        print(f"⚠️ Roadmap не созданы для фич: {', '.join(failed_features)}")
+        return False
+
+    return True
+```
+
+---
+
 ### Фаза 6 — Реализация ФИЧ (ПОСЛЕДОВАТЕЛЬНО) и ЗАДАЧ (ПАРАЛЛЕЛЬНО)
 
 **⚠️ КРИТИЧЕСКИ ВАЖНО:**
@@ -600,6 +782,8 @@ Dependencies: {dependencies_list}  ← ОБЯЗАТЕЛЬНОЕ ПОЛЕ
 - **ЗАДАЧИ внутри фичи могут выполняться ПАРАЛЛЕЛЬНО** (до 3 штук)
 - Каждая фича = отдельная ветка `feature/<name>`
 - После завершения всех задач фичи → merge в `{MAIN_BRANCH}`
+
+**⚠️ ГЛОБАЛЬНЫЙ ЛИМИТ: Максимум 5 агентов одновременно во всём пайплайне.**
 
 ---
 
