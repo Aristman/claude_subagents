@@ -6,9 +6,16 @@ description: Запускает полный мультиагентный пай
 # PRODUCT_CREATOR — Создание нового продукта
 
 ## Версия
-- version: 3.1.0
+- version: 3.2.0
 - standalone: true
 - purpose: product_creation
+
+## Изменения v3.2.0
+- Добавлен обязательный агент build-run-verifier для проверки сборки и запуска кода
+- Добавлена фаза Build & Run Verification в цикл разработки каждой задачи
+- Обновлён flow задачи: developer → build-run-verifier → test + review → feature-verifier
+- Добавлена автоматическая адаптация проверок под разные платформы (IntelliJ, Docker, Rust, etc.)
+- Build/Run FAIL теперь блокирует переход к test-engineer и code-reviewer
 
 ## Изменения v3.1.0
 - Добавлена обработка ошибок при запуске агентов (safe_launch_agent)
@@ -84,13 +91,32 @@ quality-gated пайплайна**.
 - Score < 9 ВСЕГДА запускает цикл возврата
 - Оценка качества строго регулируется QUALITY_SCORING.md
 
-### 5. Отображение артефактов для Human-in-the-Loop
+### 5. Build & Run Verification Gate (с v3.2.0)
+- **ОБЯЗАТЕЛЬНЫЙ шаг** после developer-agent для КАЖДОЙ задачи
+- Проверяет что код успешно собирается и запускается
+- **Если Build/Run FAIL → возврат к developer-agent**
+- **НЕ переходить к test-engineer и code-reviewer** пока Build/Run не пройден
+- Адаптируется под платформу проекта (IntelliJ Plugin, Docker, Rust, Node.js, etc.)
+
+**Поддерживаемые платформы:**
+
+| Platform | Build Command | Run Command |
+|----------|---------------|-------------|
+| IntelliJ Plugin | `./gradlew buildPlugin` | `./gradlew runIde` |
+| Kotlin/Spring Boot | `./gradlew build` | `./gradlew bootRun` |
+| Rust | `cargo build` | `cargo run` |
+| Node.js | `npm run build` | `npm start` |
+| Python | `pip install -r requirements.txt` | `python main.py` |
+| Docker | `docker build -t app .` | `docker run app` |
+| React/TypeScript | `npm run build` | `npm run dev` |
+
+### 6. Отображение артефактов для Human-in-the-Loop
 При показе PROJECT_PROFILE_HUMAN.md или PIPELINE_PROMPT.md:
 - Прочитать файл через Read tool
 - Включить ПОЛНОЕ содержимое в текстовый ответ между "---"
 - Запросить явное подтверждение через AskUserQuestion
 
-### 6. Human-in-the-Loop
+### 7. Human-in-the-Loop
 Явное одобрение человека ОБЯЗАТЕЛЬНО для:
 - PROJECT_PROFILE (человекочитаемая версия)
 - PIPELINE_PROMPT
@@ -129,6 +155,7 @@ docs/
     └── <FEATURE>/        # Артефакты фичи
         └── <TASK>/       # Артефакты задачи
             ├── IMPLEMENTATION_REPORT_<TASK>.md
+            ├── BUILD_RUN_VERIFICATION_<FEATURE>_<TASK>.md  # (с v3.2.0)
             ├── TEST_REPORT_<TASK>.md
             ├── CODE_REVIEW_<TASK>.md
             └── FEATURE_VERIFICATION_<TASK>.md
@@ -793,14 +820,17 @@ def verify_tdd_planning_complete(features):
 
 **КАЖДАЯ задача ДОЛЖНА иметь ВСЕ артефакты:**
 - ✅ `IMPLEMENTATION_REPORT_<task>.md` — от developer-agent
+- ✅ `BUILD_RUN_VERIFICATION_<feature>_<task>.md` — от build-run-verifier (ОБЯЗАТЕЛЬНО с v3.2.0)
 - ✅ `TEST_REPORT_<task>.md` — от test-engineer
 - ✅ `CODE_REVIEW_<task>.md` — от code-reviewer
 - ✅ `FEATURE_VERIFICATION_<task>.md` — от feature-verifier (с score ≥ 9)
 
 ❌ **ЗАПРЕЩЕНО:**
 - Создавать только IMPLEMENTATION_REPORT и пропускать остальные
+- Пропускать Build & Run Verification — это ОБЯЗАТЕЛЬНЫЙ шаг
 - "Устать" и делать задачи в ускоренном режиме
 - Создавать задачи больше 4-6 часов работы
+- Переходить к test-engineer если build-run-verifier вернул FAIL
 
 ### 2. Параллельная разработка задач (до 3 одновременно)
 
@@ -869,6 +899,7 @@ T-003 (JWT Tokens)          → зависит от T-002 → Level 1
 | Агент | Действие | Коммит? |
 |-------|----------|---------|
 | developer-agent | Реализует задачу | ❌ Нет (оркестратор) |
+| build-run-verifier | Проверяет сборку и запуск | ❌ Нет (оркестратор) |
 | test-engineer | Тестирует задачу | ❌ Нет (оркестратор) |
 | code-reviewer | Делает ревью задачи | ❌ Нет (оркестратор) |
 | feature-verifier | Верифицирует задачу | ❌ Нет (оркестратор) |
@@ -879,14 +910,14 @@ T-003 (JWT Tokens)          → зависит от T-002 → Level 1
 
 **Разработка задачи (в ветке feature/<name>):**
 ```
-developer-agent → test-engineer → code-reviewer → feature-verifier
-                                                                  ↓
-                                                           score ≥ 9?
-                                                                ✅ Да
-                                                        ┌───────────────┐
-                                                        │ ОРКЕСТРАТОР   │
-                                                        │ делает коммит │
-                                                        │ в feature/<name>│
+developer-agent → build-run-verifier → test-engineer → code-reviewer → feature-verifier
+                        ↓ FAIL                          (параллельно)           ↓
+                  возврат к developer                                    score ≥ 9?
+                                                                            ✅ Да
+                                                                    ┌───────────────┐
+                                                                    │ ОРКЕСТРАТОР   │
+                                                                    │ делает коммит │
+                                                                    │ в feature/<name>│
                                                         └───────────────┘
 ```
 
@@ -984,7 +1015,41 @@ for feature in features:
             result = TaskOutput(task_id=task_dev["id"], block=True, timeout=600000)
 
         # ─────────────────────────────────────────────────────────────────
-        # ШАГ 3.2: test-engineer + code-reviewer (ПАРАЛЛЕЛЬНО)
+        # ШАГ 3.2: build-run-verifier (ПОСЛЕДОВАТЕЛЬНО для каждой задачи)
+        # ⚠️ ОБЯЗАТЕЛЬНЫЙ шаг с v3.2.0
+        # ─────────────────────────────────────────────────────────────────
+        tasks_passed_build_run = []
+        for task in level_tasks:
+            task_build_run = Task(
+                subagent_type="build-run-verifier",
+                prompt=f"Проверь что код задачи {task['id']} собирается и запускается"
+            )
+            result = TaskOutput(task_id=task_build_run["id"], block=True, timeout=600000)
+
+            # Проверяем Build & Run статус
+            if "PASS" in result:
+                tasks_passed_build_run.append(task)
+            else:
+                # Build/Run FAIL — возврат к developer-agent
+                print(f"❌ {task['id']}: Build/Run FAIL — возврат на доработку")
+                task_dev_retry = Task(
+                    subagent_type="developer-agent",
+                    prompt=f"""
+                    ИСПРАВЛЕНИЕ ОШИБОК СБОРКИ/ЗАПУСКА для {task['id']}
+
+                    {result}
+
+                    Исправь код чтобы он успешно собирался и запускался.
+                    """
+                )
+                # После исправления — повтор build-run-verifier
+                # ... (рекурсивно или через цикл)
+
+        # Продолжаем только с задачами которые прошли Build & Run
+        level_tasks = tasks_passed_build_run
+
+        # ─────────────────────────────────────────────────────────────────
+        # ШАГ 3.3: test-engineer + code-reviewer (ПАРАЛЛЕЛЬНО)
         # ─────────────────────────────────────────────────────────────────
         test_review_tasks = []
         for task in level_tasks:
@@ -998,7 +1063,7 @@ for feature in features:
             TaskOutput(task_id=task_review["id"], block=True, timeout=600000)
 
         # ─────────────────────────────────────────────────────────────────
-        # ШАГ 3.3: feature-verifier (ПОСЛЕДОВАТЕЛЬНО для каждой задачи)
+        # ШАГ 3.4: feature-verifier (ПОСЛЕДОВАТЕЛЬНО для каждой задачи)
         # ─────────────────────────────────────────────────────────────────
         for task in level_tasks:
             task_verify = Task(subagent_type="feature-verifier", prompt=f"Верифицируй {task['id']}")
@@ -1341,13 +1406,18 @@ git branch -d feature/{feature_name}
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    FLOW ДЛЯ ОДНОЙ ЗАДАЧИ                        │
+│                    FLOW ДЛЯ ОДНОЙ ЗАДАЧИ (v3.2.0)               │
 └─────────────────────────────────────────────────────────────────┘
 
     developer-agent          (последовательно)
            │
            ▼
-    ┌──────┴──────┐
+    build-run-verifier        (последовательно, ОБЯЗАТЕЛЬНО)
+           │
+           ├──── PASS ────┐
+           │               │
+           ▼               ▼
+    ┌──────┴──────┐   FAIL → возврат к developer-agent
     │             │
     ▼             ▼
 test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
@@ -1372,9 +1442,11 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
 
 **Ключевые моменты:**
 1. Developer идёт первым (создаёт код)
-2. Test + Review идут параллельно (независимые проверки)
-3. Verifier идёт последним (консолидирует ОБА результата)
-4. При score < 9 — возврат к developer с задачами доработки
+2. Build-run-verifier идёт вторым (проверяет что код собирается и запускается)
+3. Если Build/Run FAIL → возврат к developer, НЕ продолжаем к test/review
+4. Test + Review идут параллельно (независимые проверки)
+5. Verifier идёт последним (консолидирует ОБА результата)
+6. При score < 9 — возврат к developer с задачами доработки
 
             Выполни доработку. Обнови IMPLEMENTATION_REPORT_{feature_id}.md
             """
@@ -1398,14 +1470,22 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 2+3. test-engineer + code-reviewer (ПАРАЛЛЕЛЬНО)                │
+│ 2. build-run-verifier (последовательно, ОБЯЗАТЕЛЬНО)           │
+│    Task(subagent_type="build-run-verifier", ...)               │
+│    ЖДЁМ ЗАВЕРШЕНИЯ (block=true)                                │
+│    Выход: BUILD_RUN_VERIFICATION.md                             │
+│    Если FAIL → возврат к developer-agent                        │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓ (только если PASS)
+┌─────────────────────────────────────────────────────────────────┐
+│ 3+4. test-engineer + code-reviewer (ПАРАЛЛЕЛЬНО)                │
 │    [ОДНО сообщение с ДВУМЯ Task]                                │
 │    ЖДЁМ ЗАВЕРШЕНИЯ ОБИХ (block=true)                           │
 │    Выход: TEST_REPORT.md + CODE_REVIEW.md                       │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ 4. feature-verifier (последовательно)                           │
+│ 5. feature-verifier (последовательно)                           │
 │    Task(subagent_type="feature-verifier", ...)                  │
 │    ЖДЁМ ЗАВЕРШЕНИЯ (block=true)                                 │
 │    Выход: FEATURE_VERIFICATION.md (score)                       │
@@ -1444,7 +1524,22 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ Шаг 2+3: test-engineer + code-reviewer (ПАРАЛЛЕЛЬНО) ⚡        │
+│ Шаг 2: build-run-verifier (ПОСЛЕДОВАТЕЛЬНО, ОБЯЗАТЕЛЬНО)       │
+├─────────────────────────────────────────────────────────────────┤
+│ Task(                                                            │
+│   subagent_type="build-run-verifier",                           │
+│   prompt="Проверь что код фичи {feature_id} собирается          │
+│           и запускается..."                                      │
+│ )                                                                │
+│                                                                  │
+│ ⚠️ ЖДЁМ ЗАВЕРШЕНИЯ (block=true, timeout=600000)                │
+│                                                                  │
+│ Выход: BUILD_RUN_VERIFICATION.md                                │
+│ Если FAIL → возврат к developer-agent                            │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓ (только если PASS)
+┌─────────────────────────────────────────────────────────────────┐
+│ Шаг 3+4: test-engineer + code-reviewer (ПАРАЛЛЕЛЬНО) ⚡        │
 ├─────────────────────────────────────────────────────────────────┤
 │ [ОДНО сообщение с ДВУМЯ Task вызовами]                          │
 │                                                                  │
@@ -1463,7 +1558,7 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ Шаг 4: feature-verifier (ПОСЛЕДОВАТЕЛЬНО после ОБИХ)           │
+│ Шаг 5: feature-verifier (ПОСЛЕДОВАТЕЛЬНО после ОБИХ)           │
 ├─────────────────────────────────────────────────────────────────┤
 │ Task(                                                            │
 │   subagent_type="feature-verifier",                             │
@@ -1472,7 +1567,8 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
 │                                                                  │
 │ ⚠️ ЖДЁМ ЗАВЕРШЕНИЯ (block=true, timeout=600000)                │
 │                                                                  │
-│ Требует: TEST_REPORT.md И CODE_REVIEW.md                        │
+│ Требует: BUILD_RUN_VERIFICATION.md, TEST_REPORT.md,             │
+│          CODE_REVIEW.md                                          │
 │ Выход: docs/develop/{feature_id}/FEATURE_VERIFICATION.md        │
 │ ИЗВЛЕКАЕМ: score из FEATURE_VERIFICATION.md                     │
 └─────────────────────────────────────────────────────────────────┘
@@ -1487,12 +1583,13 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
               │                               │
               ↓                               ↓
 ┌─────────────────────────┐     ┌───────────────────────────────┐
-│ Шаг 5a: Успех            │     │ Шаг 5b: Доработка             │
+│ Шаг 6a: Успех            │     │ Шаг 6b: Доработка             │
 ├─────────────────────────┤     ├───────────────────────────────┤
 │                          │     │ - CODE_REVIEW.md              │
 │ Фича завершена ✅        │     │ - TEST_REPORT.md              │
-│ Переход к следующей     │     │ Содержат задачи для доработки │
-└─────────────────────────┘     └───────────────────────────────┘
+│ Переход к следующей     │     │ - BUILD_RUN_VERIFICATION.md   │
+└─────────────────────────┘     │ Содержат задачи для доработки │
+                                └───────────────────────────────┘
 ```
 
 ---
@@ -1501,13 +1598,18 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    FLOW ДЛЯ ОДНОЙ ФИЧИ                          │
+│                    FLOW ДЛЯ ОДНОЙ ФИЧИ (v3.2.0)                 │
 └─────────────────────────────────────────────────────────────────┘
 
     developer-agent          (последовательно)
            │
            ▼
-    ┌──────┴──────┐
+    build-run-verifier        (последовательно, ОБЯЗАТЕЛЬНО)
+           │
+           ├──── PASS ────┐
+           │               │
+           ▼               ▼
+    ┌──────┴──────┐   FAIL → возврат к developer-agent
     │             │
     ▼             ▼
 test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
@@ -1532,9 +1634,11 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
 
 **Ключевые моменты:**
 1. Developer идёт первым (создаёт код)
-2. Test + Review идут параллельно (независимые проверки)
-3. Verifier идёт последним (консолидирует ОБА результата)
-4. При score < 9 — возврат к developer с задачами доработки
+2. Build-run-verifier идёт вторым (проверяет что код собирается и запускается)
+3. Если Build/Run FAIL → возврат к developer, НЕ продолжаем к test/review
+4. Test + Review идут параллельно (независимые проверки)
+5. Verifier идёт последним (консолидирует ОБА результата)
+6. При score < 9 — возврат к developer с задачами доработки
 
 ---
 
@@ -1548,32 +1652,57 @@ test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
 task_1 = Task(subagent_type="developer-agent", prompt="...")
 result_1 = TaskOutput(task_id=task_1["id"], block=True, timeout=600000)
 
-# Шаг 2+3: Test Engineer + Code Reviewer (ПАРАЛЛЕЛЬНО в одном сообщении)
-task_2 = Task(subagent_type="test-engineer", prompt="...")
-task_3 = Task(subagent_type="code-reviewer", prompt="...")
+# Шаг 2: Build-run-verifier (последовательно, ОБЯЗАТЕЛЬНО)
+task_2 = Task(subagent_type="build-run-verifier", prompt="...")
+result_2 = TaskOutput(task_id=task_2["id"], block=True, timeout=600000)
+
+# Проверяем что Build/Run прошёл
+if "FAIL" in result_2:
+    # Возврат к developer-agent
+    task_1 = Task(subagent_type="developer-agent", prompt="Доработай код - не проходит сборку/запуск...")
+    # ... повтор цикла
+
+# Шаг 3+4: Test Engineer + Code Reviewer (ПАРАЛЛЕЛЬНО в одном сообщении)
+task_3 = Task(subagent_type="test-engineer", prompt="...")
+task_4 = Task(subagent_type="code-reviewer", prompt="...")
 # ОДНО сообщение с двумя Task вызовами = параллельный запуск ⚡
 
-result_2 = TaskOutput(task_id=task_2["id"], block=True, timeout=600000)
 result_3 = TaskOutput(task_id=task_3["id"], block=True, timeout=600000)
-
-# Шаг 4: Verifier (последовательно, ПОСЛЕ ОБИХ предыдущих)
-task_4 = Task(subagent_type="feature-verifier", prompt="...")
 result_4 = TaskOutput(task_id=task_4["id"], block=True, timeout=600000)
+
+# Шаг 5: Verifier (последовательно, ПОСЛЕ ОБИХ предыдущих)
+task_5 = Task(subagent_type="feature-verifier", prompt="...")
+result_5 = TaskOutput(task_id=task_5["id"], block=True, timeout=600000)
 ```
 
 ❌ **НЕПРАВИЛЬНО #1** (все параллельно):
 ```python
 # НЕ ДЕЛАЙ ТАК!
-Task(subagent_type="developer-agent", ...)  # ← Не ждём завершения
-Task(subagent_type="test-engineer", ...)    # ← Запускается сразу
-Task(subagent_type="code-reviewer", ...)    # ← Тоже параллельно
-Task(subagent_type="feature-verifier", ...) # ← Хаос! Зависит от предыдущих!
+Task(subagent_type="developer-agent", ...)       # ← Не ждём завершения
+Task(subagent_type="build-run-verifier", ...)    # ← Запускается сразу - код ещё не готов!
+Task(subagent_type="test-engineer", ...)         # ← Тоже параллельно
+Task(subagent_type="code-reviewer", ...)         # ← Хаос!
+Task(subagent_type="feature-verifier", ...)      # ← Зависит от предыдущих!
 ```
 
-❌ **НЕПРАВИЛЬНО #2** (не используем параллелизм):
+❌ **НЕПРАВИЛЬНО #2** (пропуск build-run-verifier):
+```python
+# НЕ ДЕЛАЙ ТАК! Build & Run verification - ОБЯЗАТЕЛЬНЫЙ шаг!
+Task(subagent_type="developer-agent", ...)
+TaskOutput(..., block=True)
+
+# Пропуск build-run-verifier - НЕДОПУСТИМО!
+
+Task(subagent_type="test-engineer", ...)  # ← Код может не собираться!
+```
+
+❌ **НЕПРАВИЛЬНО #3** (не используем параллелизм):
 ```python
 # Работает, но медленно - test и review могли работать параллельно
 Task(subagent_type="developer-agent", ...)
+TaskOutput(..., block=True)  # ← ждём
+
+Task(subagent_type="build-run-verifier", ...)
 TaskOutput(..., block=True)  # ← ждём
 
 Task(subagent_type="test-engineer", ...)
@@ -1588,6 +1717,7 @@ TaskOutput(..., block=True)
 
 ⚡ **ОПТИМАЛЬНО** (используем параллелизм там где возможно):
 - Developer — последовательно (создаёт код)
+- Build-run-verifier — последовательно (проверяет сборку/запуск)
 - Test + Review — **параллельно** (независимые проверки)
 - Verifier — последовательно (консолидирует результаты ОБИХ)
 
@@ -1598,9 +1728,10 @@ TaskOutput(..., block=True)
 Если `feature-verifier` вернул `score < 9`:
 
 1. Прочитать `FEATURE_VERIFICATION.md` — список задач на доработку
-2. Прочитать `CODE_REVIEW.md` — замечания review
-3. Прочитать `TEST_REPORT.md` — проблемы в тестах
-4. Перезапустить `developer-agent` с контекстом доработки:
+2. Прочитать `BUILD_RUN_VERIFICATION.md` — проблемы сборки/запуска (если есть)
+3. Прочитать `CODE_REVIEW.md` — замечания review
+4. Прочитать `TEST_REPORT.md` — проблемы в тестах
+5. Перезапустить `developer-agent` с контекстом доработки:
 
 ```python
 Task(
@@ -1609,6 +1740,9 @@ Task(
     ПЕРЕРАБОТКА ЗАДАЧИ {task_id}
 
     Текущая реализация получила score {score}/10.
+
+    ПРОБЛЕМЫ СБОРКИ/ЗАПУСКА (из BUILD_RUN_VERIFICATION.md):
+    [вставить проблемы если есть]
 
     ЗАДАЧИ НА ДОРАБОТКУ (из FEATURE_VERIFICATION.md):
     [вставить задачи из верификации]
@@ -1625,8 +1759,39 @@ Task(
 )
 ```
 
-5. Повторить весь цикл: test → review → verify
-6. Повторять пока `score < 9`
+6. Повторить весь цикл: build-run → test → review → verify
+7. Повторять пока `score < 9`
+
+### Доработка при Build/Run FAIL
+
+Если `build-run-verifier` вернул `FAIL`:
+
+1. Прочитать `BUILD_RUN_VERIFICATION.md` — детали ошибки сборки/запуска
+2. Перезапустить `developer-agent` с контекстом исправления:
+
+```python
+Task(
+    subagent_type="developer-agent",
+    prompt=f"""
+    ИСПРАВЛЕНИЕ ОШИБОК СБОРКИ/ЗАПУСКА для {task_id}
+
+    Build Status: FAIL
+    Run Status: FAIL (если применимо)
+
+    ОШИБКИ СБОРКИ (из BUILD_RUN_VERIFICATION.md):
+    [вставить ошибки компиляции]
+
+    ОШИБКИ ЗАПУСКА (если есть):
+    [вставить runtime ошибки]
+
+    Исправь код чтобы он успешно собирался и запускался.
+    Обнови IMPLEMENTATION_REPORT_{task_id}.md с описанием изменений.
+    """
+)
+```
+
+3. Повторить `build-run-verifier` после исправления
+4. Только после PASS продолжать к test + review
 
 ---
 
@@ -1669,14 +1834,19 @@ Domain: {feature_domain}
 - ❌ Запускать developer для всех задач разом
 - ❌ Использовать feature-verifier для целой фичи
 - ❌ Создавать артефакты вне `docs/develop/<FEATURE>/<TASK>/`
-- ❌ **КРИТИЧЕСКО: Создавать только IMPLEMENTATION_REPORT и пропускать test/review/verify!**
-  - КАЖДАЯ задача ДОЛЖНА иметь ВСЕ 4 артефакта
-  - "Усталость" оркестатора — НЕ оправдание
+- ❌ **КРИТИЧЕСКО: Пропускать build-run-verifier! (с v3.2.0 — ОБЯЗАТЕЛЬНЫЙ шаг)**
+  - Build & Run Verification — обязательный этап после developer-agent
+  - НЕ переходить к test-engineer если код не собирается/не запускается
+- ❌ **КРИТИЧЕСКО: Создавать только IMPLEMENTATION_REPORT и пропускать verification/test/review!**
+  - КАЖДАЯ задача ДОЛЖНА иметь ВСЕ 5 артефактов (с v3.2.0)
+  - "Усталость" оркестратора — НЕ оправдание
 - ❌ **КРИТИЧЕСКО: Запускать feature-verifier ДО test-engineer и code-reviewer!**
-  - feature-verifier зависит от ОБИХ: TEST_REPORT.md И CODE_REVIEW.md
-- ❌ **КРИТИЧЕСКО: Запускать test-engineer или code-reviewer ДО developer-agent!**
-  - Они требуют IMPLEMENTATION_REPORT.md от developer
-- ❌ **Запускать все 4 агента в одном сообщении** (developer/test/review/verify)
+  - feature-verifier зависит от: BUILD_RUN_VERIFICATION.md, TEST_REPORT.md И CODE_REVIEW.md
+- ❌ **КРИТИЧЕСКО: Запускать test-engineer или code-reviewer ДО build-run-verifier!**
+  - Они требуют что код успешно собирался и запускался
+- ❌ **КРИТИЧЕСКО: Запускать build-run-verifier ДО developer-agent!**
+  - build-run-verifier требует IMPLEMENTATION_REPORT.md от developer
+- ❌ **Запускать все 5 агентов в одном сообщении** (developer/build-run/test/review/verify)
 - ❌ **Разрабатывать более 3 задач параллельно**
 - ❌ **Игнорировать зависимости между задачами**
   - Зависимая задача НЕ может разрабатываться до родительской
@@ -1711,13 +1881,19 @@ Task(developer-agent, prompt="...T-003...")  ─┘
 
 ⚠️ ЖДЁМ ЗАВЕРШЕНИЯ ВСЕХ ТРЁХ
 
-[ОДНО сообщение с ШЕСТЬЮ Task — test + review для каждой задачи]
+[ТРИ сообщения для build-run-verifier — последовательно для каждой задачи]
+Task(build-run-verifier, "...T-001...")  → PASS → продолжаем
+Task(build-run-verifier, "...T-002...")  → PASS → продолжаем
+Task(build-run-verifier, "...T-003...")  → FAIL → возврат к developer
+
+⚠️ Если build-run FAIL → возврат к developer-agent, НЕ продолжаем к test/review
+
+[ОДНО сообщение с ШЕСТЬЮ Task — test + review для каждой задачи (только PASS)]
 Task(test-engineer, "...T-001...")           ─┐
 Task(code-reviewer, "...T-001...")          ─┤
 Task(test-engineer, "...T-002...")           ─┼─ ПАРАЛЛЕЛЬНО
 Task(code-reviewer, "...T-002...")          ─┤
-Task(test-engineer, "...T-003...")           ─┤
-Task(code-reviewer, "...T-003...")          ─┘
+(test + review для T-003 — после исправления) ─┘
 
 ⚠️ ЖДЁМ ЗАВЕРШЕНИЯ ВСЕХ ШЕСТИ
 
@@ -1744,6 +1920,7 @@ Task(feature-verifier, "...T-003...")  → score ≥ 9 → КОММИТ
 2. Найти секцию **Dependencies** для задачи
 3. Проверить что все зависимые задачи:
    - Реализованы (есть IMPLEMENTATION_REPORT)
+   - Прошли Build & Run Verification (есть BUILD_RUN_VERIFICATION с PASS)
    - Прошли верификацию (score ≥ 9)
    - Есть коммиты в ветке фичи
 

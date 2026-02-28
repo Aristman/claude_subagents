@@ -259,6 +259,42 @@ Agent = Role + Profile Awareness + Artifact Contracts
 
 ---
 
+### Build & Run Verifier Agent
+
+- **ID:** build-run-verifier
+- **Role:** проверка сборки и запуска кода
+- **Profile-aware:** ✅ обязательно
+- **Добавлен:** v3.2.0 (обязательный агент)
+
+**Обязан:**
+
+- проверить что код успешно собирается
+- проверить что код запускается без критических ошибок (если применимо)
+- адаптировать команды под платформу (IntelliJ Plugin, Docker, Rust, Node.js, etc.)
+- использовать timeout для предотвращения зависания
+- блокировать переход к test-engineer при FAIL
+
+**Платформы:**
+
+| Platform | Build Command | Run Command |
+|----------|---------------|-------------|
+| IntelliJ Plugin | `./gradlew buildPlugin` | `./gradlew runIde` |
+| Kotlin/Spring Boot | `./gradlew build` | `./gradlew bootRun` |
+| Rust | `cargo build` | `cargo run` |
+| Node.js | `npm run build` | `npm start` |
+| Docker | `docker build -t app .` | `docker run app` |
+
+**Выход:**
+
+- BUILD_RUN_VERIFICATION_<feature>_<task>.md
+
+**Gate Rule:**
+
+- Если Build/Run FAIL → возврат к developer-agent
+- НЕ переходить к test-engineer и code-reviewer
+
+---
+
 ### Test Engineer Agent *(проектируется позже)*
 
 - **Role:** тестирование фичи
