@@ -6,17 +6,18 @@ description: Запускает полный мультиагентный пай
 # PRODUCT_CREATOR — Создание нового продукта
 
 ## Версия
-- version: 3.1.0
+- version: 4.0.0
 - standalone: true
 - purpose: product_creation
 
-## Изменения v3.1.0
-- Добавлена обработка ошибок при запуске агентов (safe_launch_agent)
-- Добавлен retry с exponential backoff для failed агентов
-- Установлен лимит параллельных агентов = 5 (было 3)
-- Добавлена функция log_failed_task для регистрации неудачных задач
-- Добавлена функция verify_tdd_planning_complete для проверки создания roadmap
-- Добавлена функция run_tdd_planner_with_retry для TDD планирования с обработкой ошибок
+## Изменения v4.0.0
+- CONTEXT.md кэширование: однократный сбор контекста, повторное использование агентами
+- test-reviewer вместо test-engineer + code-reviewer (3 агента на задачу вместо 4)
+- Компактный формат TDD roadmaps
+- Умный retry с сжатием промпта (full → error → minimal)
+- Глобальный лимит агентов 5 → 3
+- Удаление дублирований, сжатие SKILL.md (~60%)
+- Обновление артефактов: TEST_AND_REVIEW вместо TEST_REPORT + CODE_REVIEW
 
 ---
 
@@ -113,8 +114,7 @@ docs/
 │   ├── TECH_REQUIREMENTS.md
 │   ├── SCOPE.md
 │   ├── ARCHITECTURE_OVERVIEW.md
-│   ├── FEATURES_INDEX.md         # Декомпозиция на ФИЧИ
-│   ├── TASKS_INDEX.md            # Индекс всех задач
+│   ├── FEATURES_INDEX.md
 │   ├── SYSTEM_VERIFICATION.md
 │   ├── ARCHITECTURE.md
 │   ├── USAGE.md
@@ -122,15 +122,14 @@ docs/
 │   └── RELEASE_NOTES.md
 │
 ├── roadmaps/             # TDD roadmaps для задач фич (Фаза 5)
-│   ├── ROADMAP_TASKS_<feature>.md    # Задачи фичи (TDD)
-│   └── ...
+│   └── ROADMAP_TASKS_<feature>.md
 │
 └── develop/              # Артефакты разработки задач (Фаза 6)
+    ├── CONTEXT.md        # Кэш контекста проекта (создаётся один раз)
     └── <FEATURE>/        # Артефакты фичи
         └── <TASK>/       # Артефакты задачи
             ├── IMPLEMENTATION_REPORT_<TASK>.md
-            ├── TEST_REPORT_<TASK>.md
-            ├── CODE_REVIEW_<TASK>.md
+            ├── TEST_AND_REVIEW_<TASK>.md
             └── FEATURE_VERIFICATION_<TASK>.md
 
 README.md                 # Главный файл проекта (в корне!)
@@ -140,6 +139,7 @@ README.md                 # Главный файл проекта (в корн�
 - **README.md → в корне проекта** (главный файл документации)
 - Все проектные артефакты → `docs/project/`
 - Roadmaps задач → `docs/roadmaps/ROADMAP_TASKS_<feature>.md`
+- CONTEXT.md → `docs/develop/CONTEXT.md` (один на весь проект)
 - Артефакты разработки задачи → `docs/develop/<FEATURE>/<TASK>/`
 
 ---
@@ -151,115 +151,37 @@ README.md                 # Главный файл проекта (в корн�
 ### Структура веток (ФИЧИ ПОСЛЕДОВАТЕЛЬНО, ЗАДАЧИ ПАРАЛЛЕЛЬНО)
 
 ```
-{MAIN_BRANCH} (основная ветка, например SW-DEV)
+{MAIN_BRANCH} (основная ветка)
 │
-├── (коммиты на каждой стадии)
-│   ├── Фаза 1: Project Profile
-│   ├── Фаза 2: Pipeline Definition
-│   ├── Фаза 3: Analytics
-│   ├── Фаза 4: Architecture (FEATURES_INDEX.md)
-│   ├── Фаза 5: TDD Planning (ROADMAP_TASKS для фич)
-│   └──
+├── Фаза 1-5: коммиты на {MAIN_BRANCH}
 │
-├─────────────────────────────────────────────────────────┐
-│ ФАЗА 6: Реализация фич (ПОСЛЕДОВАТЕЛЬНО)                 │
-├─────────────────────────────────────────────────────────┤
-│                                                          │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │ ФИЧА F-001: Authentication System              │   │
-│  │ Ветка: feature/auth-system                     │   │
-│  ├─────────────────────────────────────────────────┤   │
-│  │ Задачи (параллельно, до 3 штук):               │   │
-│  │   ├─ T-001: User Registration → commit        │   │
-│  │   ├─ T-002: Login/Logout → commit             │   │
-│  │   ├─ T-003: Password Reset → commit           │   │
-│  │   └─ T-004: JWT Tokens → commit               │   │
-│  │                                                 │   │
-│  │ Все коммиты → feature/auth-system              │   │
-│  └─────────────────────────────────────────────────┘   │
-│           │                                              │
-│           ↓ (все задачи score ≥ 9)                       │
-│        Merge → {MAIN_BRANCH}                             │
-│           │                                              │
-│           ↓                                              │
-│  ┌─────────────────────────────────────────────────┐   │
-│  │ ФИЧА F-002: User Profile                       │   │
-│  │ Ветка: feature/user-profile                    │   │
-│  ├─────────────────────────────────────────────────┤   │
-│  │ Задачи (параллельно, до 3 штук):               │   │
-│  │   ├─ T-005: Profile View → commit             │   │
-│  │   ├─ T-006: Profile Edit → commit             │   │
-│  │   └─ T-007: Avatar Upload → commit            │   │
-│  │                                                 │   │
-│  │ Все коммиты → feature/user-profile             │   │
-│  └─────────────────────────────────────────────────┘   │
-│           │                                              │
-│           ↓ (все задачи score ≥ 9)                       │
-│        Merge → {MAIN_BRANCH}                             │
-│           │                                              │
-│           ↓                                              │
-│        [Фича F-003...]                                  │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
+├──────────────────────────────────────────────────┐
+│ ФАЗА 6: Реализация фич (ПОСЛЕДОВАТЕЛЬНО)         │
+│                                                  │
+│  ФИЧА F-001 → feature/<name>                     │
+│  ├─ Задачи параллельно (до 3)                    │
+│  ├─ Коммиты задач → feature/<name>               │
+│  └─ Merge → {MAIN_BRANCH}                        │
+│                                                  │
+│  ФИЧА F-002 → feature/<name>                     │
+│  ├─ ...                                          │
+│  └─ Merge → {MAIN_BRANCH}                        │
+│                                                  │
+│  ФИЧА F-003 → ...                                │
+└──────────────────────────────────────────────────┘
     │
-    ↓
-├── Фаза 7: System Verification
-├── Фаза 8: Documentation
-└── Фаза 9: Release
+    ├── Фаза 7: System Verification
+    ├── Фаза 8: Documentation
+    └── Фаза 9: Release
 ```
-
-### Общий алгоритм работы
-
-**В начале пайплайна (Фаза 0):**
-1. Определить имя основной ветки `{MAIN_BRANCH}`
-2. Проверить существование ветки `{MAIN_BRANCH}`
-3. Если не существует — создать от текущей ветки
-4. Переключиться на `{MAIN_BRANCH}`
-
-**Для фаз 1-5, 7-9:**
-1. Всё работает в ветке `{MAIN_BRANCH}`
-2. **Агенты сами делают коммиты** при завершении своей работы
-
-**Для фазы 6 (Реализация фич):**
-1. **Каждая фича = отдельная ветка `feature/<name>`**
-2. Фичи выполняются **строго последовательно**
-3. Задачи внутри фичи могут выполняться **параллельно** (до 3 штук)
-4. Все коммиты задач → в ветку фичи
-5. После завершения всех задач фичи → merge в `{MAIN_BRANCH}`
-6. **Оркестратор делает merge** после успешного завершения фичи
 
 ### Ответственность за коммиты
 
 | Кто | Когда делает коммит | Что коммитит |
 |-----|---------------------|--------------|
 | **Агенты фаз 1-5, 7-9** | После завершения работы фазы | Созданные артефакты |
-| **developer-agent** | После реализации задачи | Код + IMPLEMENTATION_REPORT |
-| **test-engineer** | После тестирования задачи | TEST_REPORT |
-| **code-reviewer** | После ревью задачи | CODE_REVIEW |
-| **feature-verifier** | После верификации задачи | FEATURE_VERIFICATION |
-| **Оркестратор** | **Merge фичи в {MAIN_BRANCH}** | Вся фича |
-
-### Git команды (выполняют агенты)
-
-**Проверка статуса:**
-\`\`\`bash
-git status
-\`\`\`
-
-**Добавление файлов:**
-\`\`\`bash
-git add <файлы>
-\`\`\`
-
-**Коммит:**
-\`\`\`bash
-git commit -m "<сообщение>"
-\`\`\`
-
-**Push (опционально):**
-\`\`\`bash
-git push
-\`\`\`
+| **Оркестратор** | После каждой задачи (score ≥ 9) | Код + артефакты задачи |
+| **Оркестратор** | Merge фичи в {MAIN_BRANCH} | Вся фича |
 
 ---
 
@@ -276,7 +198,7 @@ git push
 1. Определи основную ветку разработки:
    - Если пользователь не указал — спроси через AskUserQuestion
    - Если указал в запросе — используй это значение
-   - Формат: `<PROJECT>-DEV` (например, `SW-DEV`, `AUTH-DEV`, `CRM-DEV`)
+   - Формат: `<PROJECT>-DEV`
 
 2. Проверь существование ветки:
 ```bash
@@ -290,16 +212,16 @@ git checkout -b <MAIN_BRANCH>
 git push -u origin <MAIN_BRANCH>
 ```
 
-4. Запомни имя ветки для использования во всех фазах как `{MAIN_BRANCH}`
+4. Запомни имя ветки как `{MAIN_BRANCH}`
 
 ---
 
-#### Фаза 1 — Формализация проекта
+### Фаза 1 — Формализация проекта
 
 Выполни через Task tool:
-\`\`\`
+```
 subagent_type: project-profile-generator
-\`\`\`
+```
 
 **Агент сам сделает коммит** после создания артефактов.
 
@@ -315,7 +237,6 @@ if exists("docs/project/CLARIFICATION_NEEDED.md"):
     create_file("docs/project/USER_ANSWERS.md", user_answers)
     remove("docs/project/CLARIFICATION_NEEDED.md")
 
-    # Перезапускаем агента с ответами
     agent_result = Task(subagent_type="project-profile-generator", prompt="""
     ПЕРЕЗАПУСК С ОТВЕТАМИ:
 
@@ -324,19 +245,19 @@ if exists("docs/project/CLARIFICATION_NEEDED.md"):
     НЕ задавай те же вопросы повторно.
     """)
 
-    # После завершения - удаляем USER_ANSWERS.md
     remove("docs/project/USER_ANSWERS.md")
 ```
 
 ДЕЙСТВИЯ:
-- Прочитать файл `docs/project/PROJECT_PROFILE_HUMAN.md` через Read tool
+- Прочитать `docs/project/PROJECT_PROFILE_HUMAN.md` через Read tool
 - Включить ПОЛНОЕ содержимое в текстовый ответ между "---"
 - Запросить явное подтверждение через AskUserQuestion
 
 При правках — ПОВТОРИТЬ эту фазу.
+
 ---
 
-#### Фаза 2 — Определение пайплайна
+### Фаза 2 — Определение пайплайна
 
 Выполни через Task tool:
 ```
@@ -348,20 +269,19 @@ subagent_type: pipeline-prompt-generator
 Выход: `docs/project/PIPELINE_PROMPT.md`
 
 ДЕЙСТВИЯ:
-- Прочитать файл `docs/project/PIPELINE_PROMPT.md` через Read tool
+- Прочитать `docs/project/PIPELINE_PROMPT.md` через Read tool
 - Включить ПОЛНОЕ содержимое в текстовый ответ между "---"
 - Запросить явное подтверждение через AskUserQuestion
 
 При правках — ПОВТОРИТЬ Фазу 1 и Фазу 2.
+
+---
 
 ### Фаза 3 — Аналитика
 
 Выполни через Task tool **с обработкой вопросов**:
 
 1. **research-agent** → `docs/project/ANALYSIS.md`
-   ```
-   Task(subagent_type="research-agent", prompt="...")
-   ```
 
 2. **system-analyst** — ЦИКЛ с обработкой вопросов:
 
@@ -374,148 +294,105 @@ subagent_type: pipeline-prompt-generator
      Если ДА:
        → Читаешь CLARIFICATION_NEEDED.md
        → Задаю вопросы пользователю через AskUserQuestion
-       → Получаю ответы
-       → Создаю docs/project/USER_ANSWERS.md с ответами
-       → Повторяю цикл (агент перезапустится с ответами)
+       → Создаю docs/project/USER_ANSWERS.md
+       → Удаляю CLARIFICATION_NEEDED.md
+       → Повторяю цикл
 
      Если НЕТ:
-       → Артефакты TECH_REQUIREMENTS.md и SCOPE.md созданы
+       → TECH_REQUIREMENTS.md и SCOPE.md созданы
        → Выход из цикла
    ```
 
-**Псевдокод обработки вопросов:**
-\`\`\`python
-# После завершения system-analyst:
-if exists("docs/project/CLARIFICATION_NEEDED.md"):
-    questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
-
-    # Задаю вопросы пользователю
-    user_answers = AskUserQuestion(
-        questions=questions["Вопросы"],
-        options=[...]
-    )
-
-    # Создаю файл с ответами
-    create_user_answers("docs/project/USER_ANSWERS.md", user_answers)
-
-    # УДАЛЯЮ CLARIFICATION_NEEDED.md (временный артефакт)
-    remove("docs/project/CLARIFICATION_NEEDED.md")
-
-    # Перезапускаю system-analyst с контекстом ответов
-    agent_result = Task(subagent_type="system-analyst", prompt="""
-    ПЕРЕЗАПУСК С ОТВЕТАМИ:
-
-    Файл docs/project/USER_ANSWERS.md содержит ответы пользователя.
-
-    Используй эти ответы для создания финальных TECH_REQUIREMENTS.md и SCOPE.md.
-    НЕ задавай повторно те же вопросы.
-    """)
-
-    # После завершения агента - УДАЛЯЮ USER_ANSWERS.md
-    remove("docs/project/USER_ANSWERS.md")
-\`\`\`
-
 **Агенты сами сделают коммит** после создания артефактов.
+
+---
 
 ### Фаза 4 — Архитектура и декомпозиция на ФИЧИ
 
 Выполни через Task tool (последовательно):
 
 1. **solution-architect** → `docs/project/ARCHITECTURE_OVERVIEW.md`
-   ```
-   Task(subagent_type="solution-architect", prompt="...")
-   ```
 
 2. **feature-decomposer** → `docs/project/FEATURES_INDEX.md` (ЦИКЛ с обработкой вопросов):
 
    ```
    ЦИКЛ while (true):
-     Task(subagent_type="feature-decomposer", prompt="Выполни декомпозицию архитектуры на ФИЧИ (крупные обособленные блоки функционала).")
+     Task(subagent_type="feature-decomposer", prompt="Выполни декомпозицию архитектуры на ФИЧИ.")
 
-     ПРОВЕРКА: существует ли файл docs/project/CLARIFICATION_NEEDED.md?
-
-     Если ДА:
-       → Читаешь CLARIFICATION_NEEDED.md
-       → Задаю вопросы пользователю через AskUserQuestion
-       → Получаю ответы
-       → Создаю docs/project/USER_ANSWERS.md с ответами
-       → Удаляю CLARIFICATION_NEEDED.md
-       → Повторяю цикл (агент перезапустится с ответами)
+     Если CLARIFICATION_NEEDED.md существует:
+       → Обработка вопросов через AskUserQuestion
+       → Перезапуск с ответами
 
      Если НЕТ:
-       → Артефакт FEATURES_INDEX.md создан
+       → FEATURES_INDEX.md создан
        → Выход из цикла
    ```
-
-**Псевдокод обработки вопросов:**
-\`\`\`python
-# После завершения feature-decomposer:
-if exists("docs/project/CLARIFICATION_NEEDED.md"):
-    questions = parse_clarification_needed("docs/project/CLARIFICATION_NEEDED.md")
-
-    # Задаю вопросы пользователю
-    user_answers = AskUserQuestion(
-        questions=questions["Вопросы"],
-        options=[...]
-    )
-
-    # Создаю файл с ответами
-    create_user_answers("docs/project/USER_ANSWERS.md", user_answers)
-
-    # УДАЛЯЮ CLARIFICATION_NEEDED.md (временный артефакт)
-    remove("docs/project/CLARIFICATION_NEEDED.md")
-
-    # Перезапускаю feature-decomposer с контекстом ответов
-    agent_result = Task(subagent_type="feature-decomposer", prompt="""
-    ПЕРЕЗАПУСК С ОТВЕТАМИ:
-
-    Файл docs/project/USER_ANSWERS.md содержит ответы пользователя.
-
-    Используй эти ответы для создания финального FEATURES_INDEX.md.
-    НЕ задавай повторно те же вопросы.
-    """)
-
-    # После завершения агента - УДАЛЯЮ USER_ANSWERS.md
-    remove("docs/project/USER_ANSWERS.md")
-\`\`\`
 
 Каждая фича ОБЯЗАНА иметь поле Domain.
 
 **Агенты сами сделают коммит** после создания артефактов.
 
-### Фаза 5 — TDD планирование для ФИЧ
+---
+
+### Фаза 5 — CONTEXT.md + TDD планирование
+
+#### Шаг 5.1: Создание CONTEXT.md (кэш контекста)
+
+Перед TDD планированием оркестратор создаёт `docs/develop/CONTEXT.md` **один раз**.
+Все агенты Фазы 6 читают его вместо получения полного контекста через промпт.
+
+```python
+project_context = Task(
+    subagent_type="Explore",
+    prompt="""
+Собри краткий контекст проекта:
+1. Tech stack
+2. Architecture summary
+3. Coding conventions
+4. Build/run/test команды
+
+Формат: КРАТКО, только факты.
+"""
+)
+
+create_file("docs/develop/CONTEXT.md", f"""
+# Project Context
+
+## Tech Stack
+{project_context.tech_stack}
+
+## Architecture
+{project_context.architecture}
+
+## Conventions
+{project_context.conventions}
+
+## Commands
+- Build: {project_context.build_command}
+- Run: {project_context.run_command}
+- Test: {project_context.test_command}
+""")
+```
+
+**Выход:** `docs/develop/CONTEXT.md`
+
+#### Шаг 5.2: TDD планирование (компактный формат)
 
 Выполни через Task tool последовательно для **КАЖДОЙ фичи**.
 
-**Путь назначения:** `docs/roadmaps/`
-
-**Формат имени файла:** `ROADMAP_TASKS_<feature>.md`
-
-где:
-- `<feature>` — ID фичи (например, auth-system, user-profile, content)
+**Путь назначения:** `docs/roadmaps/ROADMAP_TASKS_<feature>.md`
 
 **Алгоритм:**
 
-1. Прочитай `docs/project/FEATURES_INDEX.md` и получи список всех фич
-2. Для каждой фичи запусти `tdd-planner` **последовательно**:
-   - Каждая фича разбивается на **задачи** (2-4 часа каждая)
-   - Фичи обрабатываются по очереди (одна за другой)
-3. Дождись завершения tdd-planner для текущей фичи
-4. Повторяй для следующей фичи, пока все фичи не будут обработаны
+1. Прочитай `docs/project/FEATURES_INDEX.md` — список всех фич
+2. Для каждой фичи запусти `tdd-planner` последовательно
+3. Дождись завершения, проверь создание файла
+4. Перейди к следующей фиче
 
-**Пример запуска:**
-\`\`\`
-// Для каждой фичи последовательно:
-Task(subagent_type="tdd-planner", prompt="... Feature F-001: auth-system ...")
-// Ждём завершения
-Task(subagent_type="tdd-planner", prompt="... Feature F-002: user-profile ...")
-// Ждём завершения
-...
-\`\`\`
+**Промпт для tdd-planner (компактный формат):**
 
-**Промпт для каждого tdd-planner:**
-\`\`\`
-Создай TDD roadmap с задачами для фичи:
+```
+Создай КОМПАКТНЫЙ TDD roadmap для фичи:
 
 Feature ID: {feature_id}
 Feature Name: {feature_name}
@@ -528,136 +405,77 @@ Dependencies: {feature_dependencies}
 - docs/project/ARCHITECTURE_OVERVIEW.md
 - docs/project/PROJECT_PROFILE.md
 
-ТРЕБОВАНИЯ К ROADMAP:
+ФОРМАТ ROADMAP:
 
-1. Разбей фичу на **ЗАДАЧИ** (не фичи!):
-   - Каждая задача = 2-4 часа работы
-   - Всего 3-10 задач на фичу
-   - Задачи должны быть мелкими и быстрыми
+## Feature {feature_id}: {feature_name}
+**Domain:** {feature_domain} | **Dependencies:** {feature_dependencies}
 
-2. Формат задачи:
+### Task T-001: <Task Name>
+**Domain:** {feature_domain} | **Dependencies:** None
 
-   ## Task T-XXX: <Task Name>
+#### Checklist
+- [ ] CODE: <файлы для создания/изменения>
+- [ ] TEST: <тесты>
+- [ ] BUILD: <команда сборки>
 
-   - Description: [описание]
-   - Estimated Time: 2-4 hours
-   - Dependencies: [зависимости от других задач]
-   - In scope: [что входит]
-   - Out scope: [что НЕ входит]
+#### Acceptance
+- <критерии приёмки>
 
-3. Для каждой задачи определи:
-   - Test Strategy (unit, integration, build & run)
-   - Test Cases
-   - Implementation Plan
-   - Acceptance Criteria
+[повторить для каждой задачи, 3-10 задач на фичу, 2-4 часа каждая]
 
-4. ⚠️ КРИТИЧЕСКО: Build & Run Verification
-   - Команда сборки проекта
-   - Команда запуска проекта
-   - Критерии успешности
-
-Создай ROADMAP_TASKS_{feature_id}.md в директории docs/roadmaps/
-в соответствии с твоим process workflow.
-
-**После создания roadmap — сделай git commit.**
-\`\`\`
-
-**Агенты сами сделают коммит** после создания roadmaps.
-Dependencies: {dependencies_list}  ← ОБЯЗАТЕЛЬНОЕ ПОЛЕ
-
-Входные артефакты:
-- docs/project/FEATURES_INDEX.md
-- docs/project/WORK_BREAKDOWN.md
-- docs/project/ARCHITECTURE_OVERVIEW.md
-- docs/project/PROJECT_PROFILE.md
-
-ТРЕБОВАНИЯ К ROADMAP:
-
-1. Секция Dependencies ДОЛЖНА содержать:
-   - Список ID фичей от которых зависит данная фича
-   - Если зависимостей нет — явно указать "None"
-
-2. Формат секции Dependencies:
-
-   ## Dependencies
-
-   ### Feature Dependencies
-   - F-001: User Authentication (blocking)  ← пример
-   - F-005: Database Layer (blocking)
-
-   ### External Dependencies
-   - None (или список внешних зависимостей)
-
-3. Зависимости используются для:
-   - Определения порядка разработки фич
-   - Параллельной разработки независимых фич
-   - Блокировки разработки зависимых фич до завершения родительских
-
-Создай ROADMAP_{feature_id}_01.md в директории docs/roadmaps/
-в соответствии с твоим process workflow.
-
-**После создания roadmap — сделай git commit.**
-\`\`\`
+⚠️ ОБЯЗАТЕЛЬНО:
+1. Создай файл docs/roadmaps/ROADMAP_TASKS_{feature_id}.md
+2. Сделай git commit
+```
 
 **Агенты сами сделают коммит** после создания roadmaps.
 
 ---
 
-## ⚠️ ОБРАБОТКА ОШИБОК ПРИ ЗАПУСКЕ АГЕНТОВ
+## ОБРАБОТКА ОШИБОК ПРИ ЗАПУСКЕ АГЕНТОВ
 
 ### Типичные ошибки
 
 | Ошибка | Признак | Решение |
 |--------|---------|---------|
-| **Empty result** | Агент вернул только ID или пустую строку | Retry с exponential backoff |
-| **Rate limit** | Ошибка API, timeout | Подождать 30-60 сек, retry |
+| **Empty result** | Агент вернул пустую строку | Retry с сжатием промпта |
+| **Rate limit** | 429, timeout | Подождать 60 сек, retry |
 | **Agent crash** | TaskOutput вернул ошибку | Retry до 3 раз |
-| **Invalid output** | Артефакт не создан или пустой | Retry с уточнением промпта |
+| **Invalid output** | Артефакт не создан | Retry с уточнением |
 
-### Функция безопасного запуска агента
+### safe_launch_agent (с сжатием промпта при retry)
 
 ```python
 def safe_launch_agent(subagent_type, prompt, max_retries=3, base_delay=30):
     """
-    Безопасный запуск агента с обработкой ошибок и retry.
-
-    Returns:
-        str: Результат работы агента или None после всех попыток
+    Безопасный запуск агента с обработкой ошибок.
+    Retry с сжатием промпта: full → error → minimal
     """
     import time
+    current_prompt = prompt
 
     for attempt in range(max_retries):
         try:
-            # Запускаем агент
-            task = Task(
-                subagent_type=subagent_type,
-                prompt=prompt
-            )
+            task = Task(subagent_type=subagent_type, prompt=current_prompt)
+            result = TaskOutput(task_id=task["id"], block=True, timeout=600000)
 
-            # Ждём результат с timeout
-            result = TaskOutput(
-                task_id=task["id"],
-                block=True,
-                timeout=600000  # 10 минут
-            )
-
-            # Проверяем валидность результата
             if result is None or result.strip() == "" or len(result) < 100:
-                print(f"⚠️ Попытка {attempt + 1}: агент вернул пустой или короткий результат")
-
-                # Exponential backoff
+                if attempt == 0:
+                    current_prompt = f"ERROR: Empty result. Fix: {extract_instruction(prompt)}"
+                elif attempt == 1:
+                    current_prompt = f"TASK: {extract_task_id(prompt)}. ACTION: create file."
                 delay = base_delay * (2 ** attempt)
-                print(f"   Ожидание {delay} сек перед retry...")
                 time.sleep(delay)
                 continue
 
-            # Проверяем что артефакт создан (если применимо)
             if "ROADMAP" in prompt or "REPORT" in prompt:
-                # Проверяем создание файла
                 expected_files = extract_expected_files(prompt)
                 for filepath in expected_files:
                     if not file_exists(filepath):
-                        print(f"⚠️ Файл не создан: {filepath}")
+                        if attempt == 0:
+                            current_prompt = f"ERROR: File not created: {filepath}. Create now."
+                        elif attempt == 1:
+                            current_prompt = f"CREATE: {filepath}"
                         delay = base_delay * (2 ** attempt)
                         time.sleep(delay)
                         continue
@@ -666,110 +484,52 @@ def safe_launch_agent(subagent_type, prompt, max_retries=3, base_delay=30):
 
         except Exception as e:
             error_msg = str(e).lower()
-
             if "rate limit" in error_msg or "429" in error_msg:
-                print(f"⚠️ Rate limit, ожидание 60 сек...")
                 time.sleep(60)
                 continue
-
             if "timeout" in error_msg:
-                print(f"⚠️ Timeout, retry...")
+                if attempt == 0:
+                    current_prompt = f"RETRY after timeout. Task: {extract_task_id(prompt)}"
                 time.sleep(30)
                 continue
 
-            print(f"❌ Ошибка агента: {e}")
+            if attempt == 0:
+                current_prompt = f"ERROR: {str(e)[:100]}. Fix: {extract_instruction(prompt)}"
+            elif attempt == 1:
+                current_prompt = f"SIMPLE TASK: {extract_task_id(prompt)}"
             delay = base_delay * (2 ** attempt)
             time.sleep(delay)
 
-    print(f"❌ Агент не смог выполнить задачу после {max_retries} попыток")
+    log_failed_task(extract_task_id(prompt), subagent_type, "failed after retries")
     return None
 ```
 
-### Обработка для TDD Planner
-
-```python
-def run_tdd_planner_with_retry(feature, max_retries=3):
-    """Запуск TDD Planner с обработкой ошибок."""
-
-    for attempt in range(max_retries):
-        result = safe_launch_agent(
-            subagent_type="tdd-planner",
-            prompt=f"""
-Создай TDD roadmap для фичи:
-
-Feature ID: {feature['id']}
-Feature Name: {feature['name']}
-Feature Description: {feature['description']}
-Domain: {feature['domain']}
-Dependencies: {feature['dependencies']}
-
-⚠️ ОБЯЗАТЕЛЬНО:
-1. Создай файл docs/roadmaps/ROADMAP_TASKS_{feature['id']}.md
-2. Убедись что файл не пустой
-3. Сделай git commit
-
-После создания — подтверди полный путь к созданному файлу.
-""",
-            max_retries=1  # Однократный retry внутри safe_launch
-        )
-
-        if result is None or result.strip() == "":
-            print(f"⚠️ TDD Planner для {feature['id']}: пустой результат (попытка {attempt + 1})")
-            time.sleep(30 * (2 ** attempt))
-            continue
-
-        # Проверяем что roadmap создан
-        roadmap_path = f"docs/roadmaps/ROADMAP_TASKS_{feature['id']}.md"
-        if file_exists(roadmap_path) and file_size(roadmap_path) > 500:
-            print(f"✅ Roadmap создан: {roadmap_path}")
-            return True
-        else:
-            print(f"⚠️ Roadmap не найден или пуст: {roadmap_path}")
-            time.sleep(30)
-
-    # Все попытки исчерпаны
-    print(f"❌ TDD Planner не смог создать roadmap для {feature['id']}")
-    log_failed_task(feature['id'], "tdd-planner", "empty result after retries")
-    return False
-```
-
-### Логирование неудачных задач
+### log_failed_task
 
 ```python
 def log_failed_task(task_id, agent_type, error_reason):
-    """Сохранить информацию о неудачной задаче для ручной обработки."""
-
-    log_entry = f"""
+    append_to_file("docs/project/FAILED_TASKS.md", f"""
 ## Failed Task: {task_id}
 - Agent: {agent_type}
 - Error: {error_reason}
 - Timestamp: {datetime.now()}
 - Action: MANUAL REVIEW REQUIRED
-"""
-
-    append_to_file("docs/project/FAILED_TASKS.md", log_entry)
+""")
 ```
 
-### Проверка после этапа TDD планирования
+### verify_tdd_planning_complete
 
 ```python
 def verify_tdd_planning_complete(features):
     """Проверить что все roadmap созданы."""
-
-    failed_features = []
-
+    failed = []
     for feature in features:
-        roadmap_path = f"docs/roadmaps/ROADMAP_TASKS_{feature['id']}.md"
-
-        if not file_exists(roadmap_path):
-            failed_features.append(feature['id'])
-        elif file_size(roadmap_path) < 500:
-            failed_features.append(f"{feature['id']} (empty/small)")
-
-    if failed_features:
-        print(f"⚠️ Roadmap не созданы для фич: {', '.join(failed_features)}")
+        path = f"docs/roadmaps/ROADMAP_TASKS_{feature['id']}.md"
+        if not file_exists(path) or file_size(path) < 500:
+            failed.append(feature['id'])
+    if failed:
+        print(f"⚠️ Roadmap не созданы для: {', '.join(failed)}")
         return False
-
     return True
 ```
 
@@ -777,137 +537,209 @@ def verify_tdd_planning_complete(features):
 
 ### Фаза 6 — Реализация ФИЧ (ПОСЛЕДОВАТЕЛЬНО) и ЗАДАЧ (ПАРАЛЛЕЛЬНО)
 
-**⚠️ КРИТИЧЕСКИ ВАЖНО:**
-- **ФИЧИ выполняются ПОСЛЕДОВАТЕЛЬНО** (одна за другой)
-- **ЗАДАЧИ внутри фичи могут выполняться ПАРАЛЛЕЛЬНО** (до 3 штук)
+**Критические правила:**
+- **ФИЧИ — ПОСЛЕДОВАТЕЛЬНО** (одна за другой)
+- **ЗАДАЧИ внутри фичи — ПАРАЛЛЕЛЬНО** (до 3 штук)
 - Каждая фича = отдельная ветка `feature/<name>`
+- **ГЛОБАЛЬНЫЙ ЛИМИТ: Максимум 3 агента одновременно**
 - После завершения всех задач фичи → merge в `{MAIN_BRANCH}`
 
-**⚠️ ГЛОБАЛЬНЫЙ ЛИМИТ: Максимум 5 агентов одновременно во всём пайплайне.**
+---
+
+## ЦИКЛ РАЗРАБОТКИ ОДНОЙ ЗАДАЧИ
+
+```
+1. developer-agent (последовательно)
+   ↓
+2. test-reviewer (ОДИН агент: тесты + ревью)
+   ↓
+3. feature-verifier (ВСЕГДА, после test-reviewer)
+   ↓
+4. Проверка score
+   ┌────────┴────────┐
+   │                 │
+score ≥ 9        score < 9
+   │                 │
+   ↓                 ↓
+Коммит задачи   Доработка (повтор цикла)
+```
+
+**Ключевые моменты:**
+1. Developer идёт первым (создаёт код)
+2. test-reviewer выполняет тесты И ревью в одном агенте
+3. Verifier запускается ВСЕГДА после test-reviewer
+4. При score < 9 — возврат к developer с контекстом доработки
 
 ---
 
-## ⚠️ КРИТИЧЕСКИ ВАЖНЫЕ ТРЕБОВАНИЯ
+## Промпты для агентов Фазы 6
 
-### 1. Полный цикл для КАЖДОЙ задачи (НЕПРИЕМЛЕМО ПРОПУСКАТЬ ШАГИ)
+### Промпт developer-agent
 
-**КАЖДАЯ задача ДОЛЖНА иметь ВСЕ артефакты:**
-- ✅ `IMPLEMENTATION_REPORT_<task>.md` — от developer-agent
-- ✅ `TEST_REPORT_<task>.md` — от test-engineer
-- ✅ `CODE_REVIEW_<task>.md` — от code-reviewer
-- ✅ `FEATURE_VERIFICATION_<task>.md` — от feature-verifier (с score ≥ 9)
-
-❌ **ЗАПРЕЩЕНО:**
-- Создавать только IMPLEMENTATION_REPORT и пропускать остальные
-- "Устать" и делать задачи в ускоренном режиме
-- Создавать задачи больше 4-6 часов работы
-
-### 2. Параллельная разработка задач (до 3 одновременно)
-
-✅ **МОЖНО разрабатывать до 3 задач параллельно** при соблюдении условий:
-- У задач **нет зависимостей** друг от друга (проверь Dependencies в ROADMAP_TASKS)
-- Каждая задача проходит **ПОЛНЫЙ цикл** разработки
-- Все задачи разрабатываются в ветке фазы, каждая задача = отдельный коммит
-
-❌ **ЗАПРЕЩЕНО:**
-- Разрабатывать более 3 задач параллельно
-- Игнорировать зависимости между задачами
-- Запускать разработку зависимой задачи до завершения родительской
-
-### 3. Учёт зависимостей задач
-
-**Порядок разработки задач внутри фазы:**
-1. Сначала задачи без зависимостей (Level 0)
-2. Затем задачи, зависящие от Level 0 (Level 1)
-3. И так далее по дереву зависимостей
-
-**Пример:**
 ```
-T-001 (Registration API)    → нет зависимостей → Level 0
-T-002 (Login API)           → нет зависимостей → Level 0
-T-003 (JWT Tokens)          → зависит от T-002 → Level 1
+См. CONTEXT.md в docs/develop/
 
-Порядок: (T-001, T-002 параллельно) → (T-003)
+Задача: {task_id} — {task_name}
+Feature: {feature_name}
+Domain: {feature_domain}
+
+Roadmap: docs/roadmaps/ROADMAP_TASKS_{feature_id}.md
+
+Выполни:
+1. Изучи CONTEXT.md
+2. Изучи roadmap
+3. Реализуй задачу
+4. Создай IMPLEMENTATION_REPORT_{task_id}.md (кратко)
+```
+
+### Промпт test-reviewer
+
+```
+См. CONTEXT.md в docs/develop/
+
+Задача: {task_id} — {task_name}
+Feature: {feature_name}
+
+Roadmap: docs/roadmaps/ROADMAP_TASKS_{feature_id}.md
+Implementation: docs/develop/{feature_id}/{task_id}/IMPLEMENTATION_REPORT_{task_id}.md
+
+Выполни:
+1. BUILD: команда из CONTEXT.md
+2. RUN: проверь запуск
+3. TESTS: по roadmap
+4. REVIEW: проверка кода
+
+Создай TEST_AND_REVIEW_{task_id}.md
+
+Формат:
+## Test & Review: {task_id}
+
+### Build/Run
+- Build: ✅/❌
+- Run: ✅/❌
+
+### Tests
+- Written: <список>
+- Coverage: <%>
+
+### Review Issues
+- <замечания или "нет">
+
+### Verdict
+- HAS_ISSUES: true/false
+```
+
+### Промпт feature-verifier
+
+```
+См. CONTEXT.md в docs/develop/
+
+Задача: {task_id}
+Feature: {feature_name}
+
+Roadmap: docs/roadmaps/ROADMAP_TASKS_{feature_id}.md
+TEST_AND_REVIEW: docs/develop/{feature_id}/{task_id}/TEST_AND_REVIEW_{task_id}.md
+HAS_ISSUES из test-reviewer: {has_issues}
+Критичная задача: {is_critical}
+
+Выполни ПОЛНУЮ верификацию:
+1. Проверь все артефакты
+2. Учти выявленные проблемы из TEST_AND_REVIEW
+3. Проверь build/run/tests
+4. Оцени качество кода
+
+Создай FEATURE_VERIFICATION_{task_id}.md с итоговым score (0-10).
 ```
 
 ---
 
-## Алгоритм выполнения Фазы 6
+## Псевдокод Фазы 6
 
-**⚠️ ФИЧИ ВЫПОЛНЯЮТСЯ ПОСЛЕДОВАТЕЛЬНО, ЗАДАЧИ ПАРАЛЛЕЛЬНО**
+```python
+features = parse_features("docs/project/FEATURES_INDEX.md")
 
+for feature in features:
+    feature_id = feature["id"]
+
+    # Создать ветку фичи
+    bash_command(f"git checkout -b feature/{feature_id}")
+
+    tasks = parse_tasks(f"docs/roadmaps/ROADMAP_TASKS_{feature_id}.md")
+
+    # Группируем задачи по зависимостям (Level 0, 1, ...)
+    for level_tasks in group_by_level(tasks):
+        # ========================================
+        # ШАГ 1: developer-agent (ПАРАЛЛЕЛЬНО)
+        # ========================================
+        dev_tasks = []
+        for task in level_tasks:
+            task_dev = Task(subagent_type="developer-agent", prompt=...)
+            dev_tasks.append((task, task_dev))
+
+        for task, task_dev in dev_tasks:
+            TaskOutput(task_id=task_dev["id"], block=True, timeout=600000)
+
+        # ========================================
+        # ШАГ 2: test-reviewer (ПАРАЛЛЕЛЬНО)
+        # ========================================
+        review_tasks = []
+        for task in level_tasks:
+            task_review = Task(subagent_type="test-reviewer", prompt=...)
+            review_tasks.append((task, task_review))
+
+        for task, task_review in review_tasks:
+            TaskOutput(task_id=task_review["id"], block=True, timeout=600000)
+
+        # ========================================
+        # ШАГ 3: feature-verifier (ПОСЛЕДОВАТЕЛЬНО)
+        # ========================================
+        for task in level_tasks:
+            task_verify = Task(subagent_type="feature-verifier", prompt=...)
+            result = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000)
+
+            score = extract_score(result)
+
+            if score >= 9:
+                # Отметить в roadmap
+                roadmap_path = f"docs/roadmaps/ROADMAP_TASKS_{feature_id}.md"
+                roadmap = read_file(roadmap_path)
+                updated_roadmap = mark_task_completed(roadmap, task['id'], score)
+                write_file(roadmap_path, updated_roadmap)
+
+                # Коммит roadmap + артефакты задачи
+                bash_command(f"""
+                    git add {roadmap_path}
+                    git commit -m "docs: mark task {task['id']} as completed (score {score}/10)"
+                """)
+                bash_command(f"""
+                    git add docs/develop/{feature_id}/{task['id']}/
+                    git commit -m "feat: {task['name']} ({task['id']})"
+                """)
+            else:
+                # Доработка: повторить цикл для этой задачи
+                # developer-agent получает контекст из FEATURE_VERIFICATION + TEST_AND_REVIEW
+                pass
+
+    # ========================================
+    # ВСЕ задачи фичи завершены → Merge
+    # ========================================
+    bash_command(f"""
+        git checkout {MAIN_BRANCH}
+        git merge feature/{feature_id}
+        git branch -d feature/{feature_id}
+    """)
+
+    # Отметить фичу в FEATURES_INDEX.md
+    features_index = read_file("docs/project/FEATURES_INDEX.md")
+    updated_index = mark_feature_completed(features_index, feature_id)
+    write_file("docs/project/FEATURES_INDEX.md", updated_index)
+    bash_command(f"""
+        git add docs/project/FEATURES_INDEX.md
+        git commit -m "docs: mark feature {feature_id} as completed"
+    """)
 ```
-ДЛЯ КАЖДОЙ ФИЧИ (по очереди):
 
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. Создать ветку фичи: feature/<name>                           │
-│    git checkout -b feature/<name>                               │
-├─────────────────────────────────────────────────────────────────┤
-│ 2. Прочитать ROADMAP_TASKS_<feature>.md                        │
-│ 3. Разбить задачи на группы по зависимостям                    │
-├─────────────────────────────────────────────────────────────────┤
-│ 4. Разрабатывать задачи (до 3 параллельно)                     │
-│    - Задачи без зависимостей → параллельно                     │
-│    - Задачи с зависимостями → последовательно                  │
-├─────────────────────────────────────────────────────────────────┤
-│ 5. После завершения ВСЕХ задач фичи:                           │
-│    - Проверить что все задачи score ≥ 9                         │
-│    - Merge feature/<name> → {MAIN_BRANCH}                      │
-└─────────────────────────────────────────────────────────────────┘
-
-ПЕРЕЙТИ К СЛЕДУЮЩЕЙ ФИЧЕ (повторить шаги 1-5)
-```
-
----
-
-## Git Workflow для Фазы 6 (Фичи последовательно, Задачи параллельно)
-
-### Ответственность за коммиты
-
-**Оркестратор делает merge ПОСЛЕ успешного завершения ВСЕХ задач фичи:**
-
-| Агент | Действие | Коммит? |
-|-------|----------|---------|
-| developer-agent | Реализует задачу | ❌ Нет (оркестратор) |
-| test-engineer | Тестирует задачу | ❌ Нет (оркестратор) |
-| code-reviewer | Делает ревью задачи | ❌ Нет (оркестратор) |
-| feature-verifier | Верифицирует задачу | ❌ Нет (оркестратор) |
-| **Оркестратор** | **Делает коммит после каждой задачи (score ≥ 9)** | ✅ **Да** |
-| **Оркестратор** | **Делает merge фазы после всех задач** | ✅ **Да** |
-
-### Когда делать коммит
-
-**Разработка задачи (в ветке feature/<name>):**
-```
-developer-agent → test-engineer → code-reviewer → feature-verifier
-                                                                  ↓
-                                                           score ≥ 9?
-                                                                ✅ Да
-                                                        ┌───────────────┐
-                                                        │ ОРКЕСТРАТОР   │
-                                                        │ делает коммит │
-                                                        │ в feature/<name>│
-                                                        └───────────────┘
-```
-
-**Параллельная разработка 3 задач:**
-```
-Задача T-001: dev → test → review → verify → score ≥ 9 → КОММИТ в feature/<name>
-Задача T-002: dev → test → review → verify → score ≥ 9 → КОММИТ в feature/<name>
-Задача T-003: dev → test → review → verify → score ≥ 9 → КОММИТ в feature/<name>
-```
-
-### Что коммитить
-
-**Для задачи `{task_id}` коммитить в ветку `feature/<name>`:**
-```
-docs/develop/{feature}/{task_id}/IMPLEMENTATION_REPORT_{task_id}.md
-docs/develop/{feature}/{task_id}/TEST_REPORT_{task_id}.md
-docs/develop/{feature}/{task_id}/CODE_REVIEW_{task_id}.md
-docs/develop/{feature}/{task_id}/FEATURE_VERIFICATION_{task_id}.md
-```
-
-### Команды для коммита (выполняет оркестратор)
+### Коммит артефактов задачи
 
 ```bash
 # После успешной верификации задачи (score ≥ 9)
@@ -915,853 +747,102 @@ git add docs/develop/{feature}/{task_id}/
 git commit -m "feat: {task_name} ({task_id})
 
 - Implementation: developer-agent
-- Test: test-engineer
-- Review: code-reviewer
+- Test & Review: test-reviewer
 - Verification: feature-verifier (score ≥ 9)
 "
 ```
 
-### Команда для merge фичи (выполняет оркестратор)
-
-```bash
-# После успешного завершения ВСЕХ задач фичи
-git checkout {MAIN_BRANCH}
-git merge feature/{name}
-git branch -d feature/{name}
-```
-
-### Псевдокод для параллельной разработки задач
-
-```python
-# ============================================================
-# ПОЛНЫЙ ЦИКЛ РАЗРАБОТКИ ФИЧИ (последовательно)
-# ============================================================
-
-# Читаем FEATURES_INDEX.md
-features = parse_features("docs/project/FEATURES_INDEX.md")
-
-# ============================================================
-# ДЛЯ КАЖДОЙ ФИЧИ (ПОСЛЕДОВАТЕЛЬНО)
-# ============================================================
-for feature in features:
-    feature_id = feature["id"]
-    feature_name = feature["name"]
-
-    # ─────────────────────────────────────────────────────────────────
-    # ЭТАП 1: Создать ветку фичи
-    # ─────────────────────────────────────────────────────────────────
-    bash_command(f"git checkout -b feature/{feature_id}")
-
-    # Читаем roadmap задач для фичи
-    tasks = parse_tasks(f"docs/roadmaps/ROADMAP_TASKS_{feature_id}.md")
-
-    # ─────────────────────────────────────────────────────────────────
-    # ЭТАП 2: Группируем задачи по зависимостям
-    # ─────────────────────────────────────────────────────────────────
-    # Level 0: без зависимостей
-    # Level 1: зависят от Level 0
-    # и т.д.
-
-    # ─────────────────────────────────────────────────────────────────
-    # ЭТАП 3: Разрабатываем задачи (до 3 параллельно)
-    # ─────────────────────────────────────────────────────────────────
-    for level_tasks in group_by_level(tasks):
-        # level_tasks = задачи одного уровня (максимум 3)
-
-        # ─────────────────────────────────────────────────────────────────
-        # ШАГ 3.1: developer-agent (ПАРАЛЛЕЛЬНО)
-        # ─────────────────────────────────────────────────────────────────
-        dev_tasks = []
-        for task in level_tasks:
-            task_dev = Task(
-                subagent_type="developer-agent",
-                prompt=f"Реализуй задачу {task['id']}: {task['name']}"
-            )
-            dev_tasks.append((task, task_dev))
-
-        # Ждём завершения ВСЕХ
-        for task, task_dev in dev_tasks:
-            result = TaskOutput(task_id=task_dev["id"], block=True, timeout=600000)
-
-        # ─────────────────────────────────────────────────────────────────
-        # ШАГ 3.2: test-engineer + code-reviewer (ПАРАЛЛЕЛЬНО)
-        # ─────────────────────────────────────────────────────────────────
-        test_review_tasks = []
-        for task in level_tasks:
-            task_test = Task(subagent_type="test-engineer", prompt=f"Тестируй {task['id']}")
-            task_review = Task(subagent_type="code-reviewer", prompt=f"Ревью {task['id']}")
-            test_review_tasks.append((task, task_test, task_review))
-
-        # Ждём завершения ВСЕХ
-        for task, task_test, task_review in test_review_tasks:
-            TaskOutput(task_id=task_test["id"], block=True, timeout=600000)
-            TaskOutput(task_id=task_review["id"], block=True, timeout=600000)
-
-        # ─────────────────────────────────────────────────────────────────
-        # ШАГ 3.3: feature-verifier (ПОСЛЕДОВАТЕЛЬНО для каждой задачи)
-        # ─────────────────────────────────────────────────────────────────
-        for task in level_tasks:
-            task_verify = Task(subagent_type="feature-verifier", prompt=f"Верифицируй {task['id']}")
-            result = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000)
-
-            # Проверяем score
-            score = extract_score(result)
-
-            if score >= 9:
-                # ─────────────────────────────────────────────────────────────────
-                # ШАГ: Отметить задачу в roadmap как выполненную
-                # ─────────────────────────────────────────────────────────────────
-                roadmap_path = f"docs/roadmaps/ROADMAP_TASKS_{feature_id}.md"
-                roadmap = read_file(roadmap_path)
-                updated_roadmap = mark_task_completed(roadmap, task['id'], score)
-                write_file(roadmap_path, updated_roadmap)
-
-                bash_command(f"""
-                    git add {roadmap_path}
-                    git commit -m "docs: mark task {task['id']} as completed (score {score}/10)"
-                """)
-
-                # Оркестратор делает коммит задачи
-                bash_command(f"""
-                    git add docs/develop/{feature_id}/{task['id']}/
-                    git commit -m "feat: {task['name']} ({task['id']})"
-                """)
-                print(f"✅ {task['id']}: коммит создан (score={score})")
-            else:
-                # score < 9 — перезапуск developer-agent с доработкой
-                # [код доработки...]
-
-    # ─────────────────────────────────────────────────────────────────
-    # ЭТАП 4: ВСЕ задачи фичи завершены (score ≥ 9)
-    # ─────────────────────────────────────────────────────────────────
-    # Merge фичи в {MAIN_BRANCH}
-    bash_command(f"""
-        git checkout {MAIN_BRANCH}
-        git merge feature/{feature_id}
-        git branch -d feature/{feature_id}
-    """)
-
-    # ─────────────────────────────────────────────────────────────────
-    # ШАГ: Отметить фичу в FEATURES_INDEX.md как выполненную
-    # ─────────────────────────────────────────────────────────────────
-    features_index_path = "docs/project/FEATURES_INDEX.md"
-    features_index = read_file(features_index_path)
-    updated_index = mark_feature_completed(features_index, feature_id)
-    write_file(features_index_path, updated_index)
-
-    bash_command(f"""
-        git add {features_index_path}
-        git commit -m "docs: mark feature {feature_id} as completed"
-    """)
-
-    print(f"✅ Фича {feature_id} завершена и смержена")
-
-    # Переходим к следующей фиче
-```
-
-### Критические правила
-
-1. **Коммит ТОЛЬКО после score ≥ 9** от feature-verifier
-2. **Агенты НЕ делают коммиты** — только оркестратор
-3. **Каждая задача = отдельный коммит** в ветку фичи
-4. **Каждая фича = merge в {MAIN_BRANCH}** после всех задач
-5. **Фичи выполняются ПОСЛЕДОВАТЕЛЬНО** (одна за другой)
-6. **НЕ использовать Skill(commit)** — оркестратор делает напрямую через `git commit`
-
 ---
 
-## ⚠️ ОТМЕТКА ВЫПОЛНЕННЫХ ЗАДАЧ И ФИЧ В РОАДМАПАХ (ОБЯЗАТЕЛЬНО)
-
-### Правило отметки выполненных задач
-
-**ПОСЛЕ успешной верификации каждой задачи (score ≥ 9) оркестратор ОБЯЗАН:**
-
-1. **Отметить задачу как выполненную в roadmap:**
-   - Прочитать `docs/roadmaps/ROADMAP_TASKS_<feature>.md`
-   - Найти секцию задачи `Task T-XXX`
-   - Добавить/обновить статус: `**Status:** ✅ COMPLETED`
-   - Добавить дату завершения: `**Completed:** YYYY-MM-DD`
-   - Добавить финальный score: `**Final Score:** X/10`
-
-2. **Сделать коммит с обновлённым roadmap:**
-   ```bash
-   git add docs/roadmaps/ROADMAP_TASKS_<feature>.md
-   git commit -m "docs: mark task {task_id} as completed (score {score}/10)"
-   ```
-
-### Формат отметки задачи в roadmap
-
-```markdown
-### Task T-001: <Task Name>
-
-**Description:** [описание]
-**Estimated Time:** 2-4 hours
-**Dependencies:** None
-**Status:** ✅ COMPLETED
-**Completed:** 2025-01-15
-**Final Score:** 9/10
-
-**Scope:**
-- **In scope:** [что входит]
-- **Out scope:** [что НЕ входит]
-
-[... остальное содержимое задачи ...]
-```
-
-### Правило отметки выполненной фичи
-
-**ПОСЛЕ успешного merge фичи в {MAIN_BRANCH} оркестратор ОБЯЗАН:**
-
-1. **Отметить фичу как выполненную в FEATURES_INDEX.md:**
-   - Прочитать `docs/project/FEATURES_INDEX.md`
-   - Найти секцию фичи `Feature F-XXX`
-   - Добавить/обновить статус: `**Status:** ✅ COMPLETED`
-   - Добавить дату завершения: `**Completed:** YYYY-MM-DD`
-
-2. **Сделать финальный коммит:**
-   ```bash
-   git add docs/project/FEATURES_INDEX.md
-   git commit -m "docs: mark feature {feature_id} as completed"
-   ```
-
-### Формат отметки фичи в FEATURES_INDEX.md
-
-```markdown
-## Feature F-001
-
-- **Name:** <Feature name>
-- **Description:** <Brief description>
-- **Domain:** <Domain ID>
-- **Related Requirements:** <FR-IDs>
-- **Dependencies:** <List or None>
-- **Status:** ✅ COMPLETED
-- **Completed:** 2025-01-15
-- **Notes:** <Additional notes>
-```
-
-### Псевдокод отметки задачи после верификации
-
-```python
-# ─────────────────────────────────────────────────────────────────
-# ШАГ 3.3: feature-verifier (ПОСЛЕДОВАТЕЛЬНО для каждой задачи)
-# ─────────────────────────────────────────────────────────────────
-for task in level_tasks:
-    task_verify = Task(subagent_type="feature-verifier", prompt=f"Верифицируй {task['id']}")
-    result = TaskOutput(task_id=task_verify["id"], block=True, timeout=600000)
-
-    # Проверяем score
-    score = extract_score(result)
-
-    if score >= 9:
-        # ─────────────────────────────────────────────────────────────────
-        # ШАГ 3.4: Отметить задачу в roadmap как выполненную
-        # ─────────────────────────────────────────────────────────────────
-        roadmap_path = f"docs/roadmaps/ROADMAP_TASKS_{feature_id}.md"
-        roadmap = read_file(roadmap_path)
-
-        # Добавляем статус задачи
-        updated_roadmap = mark_task_completed(roadmap, task['id'], score)
-
-        # Записываем обновлённый roadmap
-        write_file(roadmap_path, updated_roadmap)
-
-        # Коммит с обновлённым roadmap
-        bash_command(f"""
-            git add {roadmap_path}
-            git commit -m "docs: mark task {task['id']} as completed (score {score}/10)"
-        """)
-
-        # Оркестратор делает коммит задачи
-        bash_command(f"""
-            git add docs/develop/{feature_id}/{task['id']}/
-            git commit -m "feat: {task['name']} ({task['id']})"
-        """)
-        print(f"✅ {task['id']}: коммит создан (score={score})")
-```
-
-### Псевдокод отметки фичи после merge
-
-```python
-# ─────────────────────────────────────────────────────────────────
-# ЭТАП 4: ВСЕ задачи фичи завершены (score ≥ 9)
-# ─────────────────────────────────────────────────────────────────
-
-# Merge фичи в {MAIN_BRANCH}
-bash_command(f"""
-    git checkout {MAIN_BRANCH}
-    git merge feature/{feature_id}
-    git branch -d feature/{feature_id}
-""")
-
-# ─────────────────────────────────────────────────────────────────
-# ШАГ 4.1: Отметить фичу в FEATURES_INDEX.md как выполненную
-# ─────────────────────────────────────────────────────────────────
-features_index_path = "docs/project/FEATURES_INDEX.md"
-features_index = read_file(features_index_path)
-
-# Добавляем статус фичи
-updated_index = mark_feature_completed(features_index, feature_id)
-
-# Записываем обновлённый индекс
-write_file(features_index_path, updated_index)
-
-# Коммит с обновлённым индексом
-bash_command(f"""
-    git add {features_index_path}
-    git commit -m "docs: mark feature {feature_id} as completed"
-""")
-
-print(f"✅ Фича {feature_id} завершена и смержена")
-```
-
-### Функции отметки (псевдокод)
+## Функции отметки
 
 ```python
 def mark_task_completed(roadmap_content, task_id, score):
     """Добавляет статус выполненной задачи в roadmap"""
     from datetime import datetime
-
     completed_date = datetime.now().strftime("%Y-%m-%d")
-
-    # Находим секцию задачи
     task_section = find_task_section(roadmap_content, task_id)
 
-    # Если статус уже есть — обновляем, иначе добавляем
     if "**Status:**" in task_section:
-        # Обновляем существующий статус
         updated = task_section.replace(
             "**Status:** ⏳ IN PROGRESS",
             f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10"
         )
     else:
-        # Добавляем новый статус после заголовка задачи
         updated = task_section.replace(
             f"### Task {task_id}:",
             f"### Task {task_id}:\n**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Final Score:** {score}/10"
         )
-
-    # Заменяем в roadmap
     return roadmap_content.replace(task_section, updated)
 
 
 def mark_feature_completed(features_index_content, feature_id):
     """Добавляет статус выполненной фичи в FEATURES_INDEX.md"""
     from datetime import datetime
-
     completed_date = datetime.now().strftime("%Y-%m-%d")
-
-    # Находим секцию фичи
     feature_section = find_feature_section(features_index_content, feature_id)
 
-    # Если статус уже есть — обновляем, иначе добавляем
     if "**Status:**" in feature_section:
-        # Обновляем существующий статус
         updated = feature_section.replace(
             "**Status:** ⏳ IN PROGRESS",
             f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}"
         )
     else:
-        # Добавляем новый статус после Dependencies
         updated = feature_section.replace(
             f"**Notes:**",
             f"**Status:** ✅ COMPLETED\n**Completed:** {completed_date}\n**Notes:**"
         )
-
-    # Заменяем в FEATURES_INDEX
     return features_index_content.replace(feature_section, updated)
 ```
 
 ---
-7. **⚠️ ОБЯЗАТЕЛЬНО: Отмечать выполненные задачи в roadmap после score ≥ 9**
-8. **⚠️ ОБЯЗАТЕЛЬНО: Отмечать выполненную фичу в FEATURES_INDEX.md после merge**
 
+## Доработка при score < 9
 
-### Шаг 1: Анализ фич и зависимостей
+1. Прочитать `FEATURE_VERIFICATION_<task>.md` — задачи на доработку
+2. Прочитать `TEST_AND_REVIEW_<task>.md` — замечания и проблемы
+3. Перезапустить `developer-agent` с контекстом доработки:
 
 ```
-1. Прочитай docs/project/WORK_BREAKDOWN.md
-2. Прочитай docs/project/FEATURES_INDEX.md
-3. Прочитай docs/roadmaps/ROADMAP_*.md для всех фич
-4. Построй таблицу зависимостей:
+ПЕРЕРАБОТКА ЗАДАЧИ {task_id}
 
-   Feature ID | Dependencies | Level | Can Parallel
-   -----------|--------------|-------|--------------
-   F-001      | None         | 0     | F-002, F-003
-   F-002      | F-001        | 1     | F-003
-   F-003      | F-001        | 1     | F-002
-   F-004      | F-002        | 2     | (после F-002)
+Текущий score: {score}/10
 
-5. Сгруппируй фичи по Level для последовательной обработки
-6. Внутри каждого Level выдели до 3 фич для параллельной разработки
+ЗАДАЧИ НА ДОРАБОТКУ (из FEATURE_VERIFICATION):
+[содержимое]
+
+ЗАМЕЧАНИЯ (из TEST_AND_REVIEW):
+[содержимое]
+
+Выполни доработку. Обнови IMPLEMENTATION_REPORT_{task_id}.md.
 ```
 
-### Шаг 2: Параллельная разработка группы фич (до 3 штук)
-
-### Шаг 2: Параллельная разработка группы задач (до 3 штук)
-
-┌─────────────────────────────────────────────────────────────────┐
-│ ГРУППА ЗАДАЧ Level N (до 3 задач параллельно)                  │
-└─────────────────────────────────────────────────────────────────┘
-
-**Для каждой задачи в группе запускаем ПОЛНЫЙ цикл:**
-
-┌─────────────────────────────────────────────────────────────────┐
-│ ЗАДАЧА {task_id_1}                                             │
-├─────────────────────────────────────────────────────────────────┤
-│ 1. developer-agent → IMPLEMENTATION_REPORT                     │
-│ 2. test-engineer + code-reviewer (параллельно)                 │
-│ 3. feature-verifier → FEATURE_VERIFICATION (score)             │
-│ 4. Если score < 9 → доработка (повтор 1-3)                     │
-│ 5. Если score ≥ 9 → оркестратор делает коммит в feature/<name>    │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│ ЗАДАЧА {task_id_2} (ПАРАЛЛЕЛЬНО с {task_id_1})                │
-├─────────────────────────────────────────────────────────────────┤
-│ 1. developer-agent → IMPLEMENTATION_REPORT                     │
-│ 2. test-engineer + code-reviewer (параллельно)                 │
-│ 3. feature-verifier → FEATURE_VERIFICATION (score)             │
-│ 4. Если score < 9 → доработка (повтор 1-3)                     │
-│ 5. Если score ≥ 9 → оркестратор делает коммит в feature/<name>    │
-└─────────────────────────────────────────────────────────────────┘
-
-⚠️ ЖДЁМ ЗАВЕРШЕНИЯ ВСЕХ ЗАДАЧ В ГРУППЕ перед переходом к следующему Level
-```
-
-**После завершения ВСЕХ задач фичи:**
-```
-git checkout {MAIN_BRANCH}
-git merge feature/{feature_name}
-git branch -d feature/{feature_name}
-```
+4. Повторить цикл: test-reviewer → feature-verifier
 
 ---
 
-## Визуальная схема флоу для ОДНОЙ ЗАДАЧИ
+## ЗАПРЕЩЕНО
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    FLOW ДЛЯ ОДНОЙ ЗАДАЧИ                        │
-└─────────────────────────────────────────────────────────────────┘
-
-    developer-agent          (последовательно)
-           │
-           ▼
-    ┌──────┴──────┐
-    │             │
-    ▼             ▼
-test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
-    │             │
-    └──────┬──────┘
-           │
-           ▼
-  feature-verifier             (последовательно, после ОБИХ)
-           │
-           ▼
-      score ≥ 9?
-           │
-     ┌─────┴─────┐
-     │           │
-    ДА          НЕТ
-     │           │
-     ▼           ▼
-  Оркестратор делает коммит   developer-agent (повтор с контекстом доработки)
-  в feature/<name>                │
-                                ▼ (цикл повторяется)
-```
-
-**Ключевые моменты:**
-1. Developer идёт первым (создаёт код)
-2. Test + Review идут параллельно (независимые проверки)
-3. Verifier идёт последним (консолидирует ОБА результата)
-4. При score < 9 — возврат к developer с задачами доработки
-
-            Выполни доработку. Обнови IMPLEMENTATION_REPORT_{feature_id}.md
-            """
-        )
-        TaskOutput(task_id=task["id"], block=True, timeout=600000)
-
-        # Повторяем test + review + verifier для этой фичи
-        # (контекст: доработка готова)
-```
-
----
-
-
-┌─────────────────────────────────────────────────────────────────┐
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 1. developer-agent (последовательно)                           │
-│    Task(subagent_type="developer-agent", ...)                   │
-│    ЖДЁМ ЗАВЕРШЕНИЯ (block=true)                                │
-│    Выход: IMPLEMENTATION_REPORT.md                              │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 2+3. test-engineer + code-reviewer (ПАРАЛЛЕЛЬНО)                │
-│    [ОДНО сообщение с ДВУМЯ Task]                                │
-│    ЖДЁМ ЗАВЕРШЕНИЯ ОБИХ (block=true)                           │
-│    Выход: TEST_REPORT.md + CODE_REVIEW.md                       │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ 4. feature-verifier (последовательно)                           │
-│    Task(subagent_type="feature-verifier", ...)                  │
-│    ЖДЁМ ЗАВЕРШЕНИЯ (block=true)                                 │
-│    Выход: FEATURE_VERIFICATION.md (score)                       │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-                    ┌─────────────────┐
-                    │ ПРОВЕРКА SCORE  │
-                    └─────────────────┘
-                              ↓
-              ┌───────────────┴───────────────┐
-              │                               │
-        score ≥ 9                      score < 9
-              │                               │
-              ↓                               ↓
-      Оркестратор делает коммит                    Повтор 1-4 (доработка)
-    (коммит через git)                    с контекстом
-```
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ ЦИКЛ для фичи {feature_id} (повторять пока score < 9)          │
-└─────────────────────────────────────────────────────────────────┘
-
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Шаг 1: developer-agent (ПОСЛЕДОВАТЕЛЬНО)                       │
-├─────────────────────────────────────────────────────────────────┤
-│ Task(                                                            │
-│   subagent_type="developer-agent",                              │
-│   prompt="Реализуй фичу {feature_id}..."                        │
-│ )                                                                │
-│                                                                  │
-│ ⚠️ ЖДЁМ ЗАВЕРШЕНИЯ (block=true, timeout=600000)                │
-│                                                                  │
-│ Выход: docs/develop/{feature_id}/IMPLEMENTATION_REPORT.md       │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Шаг 2+3: test-engineer + code-reviewer (ПАРАЛЛЕЛЬНО) ⚡        │
-├─────────────────────────────────────────────────────────────────┤
-│ [ОДНО сообщение с ДВУМЯ Task вызовами]                          │
-│                                                                  │
-│ Task(                                                            │
-│   subagent_type="test-engineer",                                │
-│   prompt="Протестируй реализованную фичу {feature_id}..."       │
-│ )                                                                │
-│ Task(                                                            │
-│   subagent_type="code-reviewer",                                │
-│   prompt="Выполни code review для фичи {feature_id}..."         │
-│ )                                                                │
-│                                                                  │
-│ ⚠️ ЖДЁМ ЗАВЕРШЕНИЯ ОБИХ (block=true для каждого)               │
-│                                                                  │
-│ Выход: TEST_REPORT.md + CODE_REVIEW.md                          │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ Шаг 4: feature-verifier (ПОСЛЕДОВАТЕЛЬНО после ОБИХ)           │
-├─────────────────────────────────────────────────────────────────┤
-│ Task(                                                            │
-│   subagent_type="feature-verifier",                             │
-│   prompt="Выполни финальную верификацию фичи {feature_id}..."    │
-│ )                                                                │
-│                                                                  │
-│ ⚠️ ЖДЁМ ЗАВЕРШЕНИЯ (block=true, timeout=600000)                │
-│                                                                  │
-│ Требует: TEST_REPORT.md И CODE_REVIEW.md                        │
-│ Выход: docs/develop/{feature_id}/FEATURE_VERIFICATION.md        │
-│ ИЗВЛЕКАЕМ: score из FEATURE_VERIFICATION.md                     │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-                    ┌─────────────────┐
-                    │ ПРОВЕРКА SCORE  │
-                    └─────────────────┘
-                              ↓
-              ┌───────────────┴───────────────┐
-              │                               │
-        score ≥ 9                      score < 9
-              │                               │
-              ↓                               ↓
-┌─────────────────────────┐     ┌───────────────────────────────┐
-│ Шаг 5a: Успех            │     │ Шаг 5b: Доработка             │
-├─────────────────────────┤     ├───────────────────────────────┤
-│                          │     │ - CODE_REVIEW.md              │
-│ Фича завершена ✅        │     │ - TEST_REPORT.md              │
-│ Переход к следующей     │     │ Содержат задачи для доработки │
-└─────────────────────────┘     └───────────────────────────────┘
-```
-
----
-
-## Визуальная схема флоу
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    FLOW ДЛЯ ОДНОЙ ФИЧИ                          │
-└─────────────────────────────────────────────────────────────────┘
-
-    developer-agent          (последовательно)
-           │
-           ▼
-    ┌──────┴──────┐
-    │             │
-    ▼             ▼
-test-engineer  code-reviewer   (ПАРАЛЛЕЛЬНО ⚡)
-    │             │
-    └──────┬──────┘
-           │
-           ▼
-  feature-verifier             (последовательно, после ОБИХ)
-           │
-           ▼
-      score ≥ 9?
-           │
-     ┌─────┴─────┐
-     │           │
-    ДА          НЕТ
-     │           │
-     ▼           ▼
-  Оркестратор делает коммит   developer-agent (повтор с контекстом доработки)
-                  │
-                  ▼ (цикл повторяется)
-```
-
-**Ключевые моменты:**
-1. Developer идёт первым (создаёт код)
-2. Test + Review идут параллельно (независимые проверки)
-3. Verifier идёт последним (консолидирует ОБА результата)
-4. При score < 9 — возврат к developer с задачами доработки
-
----
-
-## Правила выполнения
-
-### Последовательность и параллелизм (КРИТИЧЕСКО)
-
-✅ **ПРАВИЛЬНО** (оптимизировано):
-```python
-# Шаг 1: Developer (последовательно)
-task_1 = Task(subagent_type="developer-agent", prompt="...")
-result_1 = TaskOutput(task_id=task_1["id"], block=True, timeout=600000)
-
-# Шаг 2+3: Test Engineer + Code Reviewer (ПАРАЛЛЕЛЬНО в одном сообщении)
-task_2 = Task(subagent_type="test-engineer", prompt="...")
-task_3 = Task(subagent_type="code-reviewer", prompt="...")
-# ОДНО сообщение с двумя Task вызовами = параллельный запуск ⚡
-
-result_2 = TaskOutput(task_id=task_2["id"], block=True, timeout=600000)
-result_3 = TaskOutput(task_id=task_3["id"], block=True, timeout=600000)
-
-# Шаг 4: Verifier (последовательно, ПОСЛЕ ОБИХ предыдущих)
-task_4 = Task(subagent_type="feature-verifier", prompt="...")
-result_4 = TaskOutput(task_id=task_4["id"], block=True, timeout=600000)
-```
-
-❌ **НЕПРАВИЛЬНО #1** (все параллельно):
-```python
-# НЕ ДЕЛАЙ ТАК!
-Task(subagent_type="developer-agent", ...)  # ← Не ждём завершения
-Task(subagent_type="test-engineer", ...)    # ← Запускается сразу
-Task(subagent_type="code-reviewer", ...)    # ← Тоже параллельно
-Task(subagent_type="feature-verifier", ...) # ← Хаос! Зависит от предыдущих!
-```
-
-❌ **НЕПРАВИЛЬНО #2** (не используем параллелизм):
-```python
-# Работает, но медленно - test и review могли работать параллельно
-Task(subagent_type="developer-agent", ...)
-TaskOutput(..., block=True)  # ← ждём
-
-Task(subagent_type="test-engineer", ...)
-TaskOutput(..., block=True)  # ← ждём (упущенная возможность!)
-
-Task(subagent_type="code-reviewer", ...)
-TaskOutput(..., block=True)  # ← ждём (могли работать параллельно)
-
-Task(subagent_type="feature-verifier", ...)
-TaskOutput(..., block=True)
-```
-
-⚡ **ОПТИМАЛЬНО** (используем параллелизм там где возможно):
-- Developer — последовательно (создаёт код)
-- Test + Review — **параллельно** (независимые проверки)
-- Verifier — последовательно (консолидирует результаты ОБИХ)
-
----
-
-### Доработка при score < 9
-
-Если `feature-verifier` вернул `score < 9`:
-
-1. Прочитать `FEATURE_VERIFICATION.md` — список задач на доработку
-2. Прочитать `CODE_REVIEW.md` — замечания review
-3. Прочитать `TEST_REPORT.md` — проблемы в тестах
-4. Перезапустить `developer-agent` с контекстом доработки:
-
-```python
-Task(
-    subagent_type="developer-agent",
-    prompt=f"""
-    ПЕРЕРАБОТКА ЗАДАЧИ {task_id}
-
-    Текущая реализация получила score {score}/10.
-
-    ЗАДАЧИ НА ДОРАБОТКУ (из FEATURE_VERIFICATION.md):
-    [вставить задачи из верификации]
-
-    ЗАМЕЧАНИЯ CODE REVIEW (из CODE_REVIEW.md):
-    [вставить замечания]
-
-    ПРОБЛЕМЫ В ТЕСТАХ (из TEST_REPORT.md):
-    [вставить проблемы]
-
-    Выполни доработку согласно этим задачам.
-    Обнови IMPLEMENTATION_REPORT_{task_id}.md с описанием изменений.
-    """
-)
-```
-
-5. Повторить весь цикл: test → review → verify
-6. Повторять пока `score < 9`
-
----
-
-### Завершение задачи (score ≥ 9)
-
-После успешной верификации задачи (score ≥ 9):
-- Оркестратор делает коммит в ветку `feature/<name>`
-- Задача считается завершенной
-- Переход к следующей задаче в фиче
-
----
-
-### Завершение фичи
-
-После успешного завершения **ВСЕХ задач** фичи:
-- Оркестратор делает merge `feature/<name>` → `{MAIN_BRANCH}`
-- Ветка `feature/<name>` удаляется
-- Переход к следующей фиче
-
-
----
-
-**Промпт для каждого агента:**
-
-```
-Task ID: {task_id}
-Task Name: {task_name}
-Feature: {feature_name}
-Domain: {feature_domain}
-
-Директория для артефактов: docs/develop/{feature}/{task_id}/
-
-Выполни свою роль для этой задачи согласно твоим инструкциям в .md файле.
-Все создаваемые артефакты сохраняй в указанную директорию.
-```
-
-**ЗАПРЕЩЕНО:**
 - ❌ Передавать несколько задач в один агент
-- ❌ Группировать задачи по версии для developer/test/review
-- ❌ Запускать developer для всех задач разом
-- ❌ Использовать feature-verifier для целой фичи
+- ❌ Запускать feature-verifier ДО test-reviewer
+- ❌ Запускать test-reviewer ДО developer-agent
 - ❌ Создавать артефакты вне `docs/develop/<FEATURE>/<TASK>/`
-- ❌ **КРИТИЧЕСКО: Создавать только IMPLEMENTATION_REPORT и пропускать test/review/verify!**
-  - КАЖДАЯ задача ДОЛЖНА иметь ВСЕ 4 артефакта
-  - "Усталость" оркестатора — НЕ оправдание
-- ❌ **КРИТИЧЕСКО: Запускать feature-verifier ДО test-engineer и code-reviewer!**
-  - feature-verifier зависит от ОБИХ: TEST_REPORT.md И CODE_REVIEW.md
-- ❌ **КРИТИЧЕСКО: Запускать test-engineer или code-reviewer ДО developer-agent!**
-  - Они требуют IMPLEMENTATION_REPORT.md от developer
-- ❌ **Запускать все 4 агента в одном сообщении** (developer/test/review/verify)
-- ❌ **Разрабатывать более 3 задач параллельно**
-- ❌ **Игнорировать зависимости между задачами**
-  - Зависимая задача НЕ может разрабатываться до родительской
-- ❌ **Разрабатывать несколько фич параллельно**
-  - Фичи выполняются ТОЛЬКО ПОСЛЕДОВАТЕЛЬНО
-
-**РАЗРЕШЕНО (оптимизация):**
-- ✅ **Запускать test-engineer и code-reviewer параллельно** (в одном сообщении)
-  - Они независимы и могут работать одновременно
-  - feature-verifier запускается только ПОСЛЕ завершения ОБИХ
-- ✅ **Разрабатывать до 3 задач параллельно** (при отсутствии зависимостей)
-  - Каждая задача проходит ПОЛНЫЙ цикл разработки
-  - Задачи должны быть одного Level (без зависимостей друг от друга)
+- ❌ Создавать только IMPLEMENTATION_REPORT и пропускать test/review/verify
+- ❌ Запускать более 3 агентов одновременно
+- ❌ Разрабатывать несколько фич параллельно
+- ❌ Игнорировать зависимости между задачами
+- ❌ Передавать полный контекст в промпте (использовать CONTEXT.md)
+- ❌ Использовать Skill(commit) — оркестратор делает напрямую через `git commit`
+- ❌ Запускать developer для всех задач разом
 
 ---
 
-## Пример параллельной разработки 3 задач внутри фичи
+## РАЗРЕШЕНО
 
-```
-ФИЧА: Authentication System
-Ветка: feature/auth-system
-
-Level 0 (нет зависимостей):
-┌─────────────────────────────────────────────────────────────────┐
-│ ЗАДАЧИ T-001, T-002, T-003 — ПАРАЛЛЕЛЬНО                      │
-└─────────────────────────────────────────────────────────────────┘
-
-[ОДНО сообщение с ТРЁМЯ developer-agent Task]
-Task(developer-agent, prompt="...T-001...")  ─┐
-Task(developer-agent, prompt="...T-002...")  ─┼─ ПАРАЛЛЕЛЬНО
-Task(developer-agent, prompt="...T-003...")  ─┘
-
-⚠️ ЖДЁМ ЗАВЕРШЕНИЯ ВСЕХ ТРЁХ
-
-[ОДНО сообщение с ШЕСТЬЮ Task — test + review для каждой задачи]
-Task(test-engineer, "...T-001...")           ─┐
-Task(code-reviewer, "...T-001...")          ─┤
-Task(test-engineer, "...T-002...")           ─┼─ ПАРАЛЛЕЛЬНО
-Task(code-reviewer, "...T-002...")          ─┤
-Task(test-engineer, "...T-003...")           ─┤
-Task(code-reviewer, "...T-003...")          ─┘
-
-⚠️ ЖДЁМ ЗАВЕРШЕНИЯ ВСЕХ ШЕСТИ
-
-[ТРИ сообщения для verifier — последовательно для каждой задачи]
-Task(feature-verifier, "...T-001...")  → score ≥ 9 → КОММИТ
-Task(feature-verifier, "...T-002...")  → score ≥ 9 → КОММИТ
-Task(feature-verifier, "...T-003...")  → score ≥ 9 → КОММИТ
-
-⚠️ ЖДЁМ ЗАВЕРШЕНИЯ ВСЕХ ТРЁХ
-
-Для каждой задачи с score < 9 — повтор цикла
-Для каждой задачи с score ≥ 9 — оркестратор сделал коммит
-
-⚠️ ТОЛЬКО ПОСЛЕ ВСЕХ ЗАДАЧ фичи → merge feature/auth → {MAIN_BRANCH}
-```
-
----
-
-## Проверка зависимостей перед разработкой задачи
-
-**Перед запуском разработки задачи ОБЯЗАТЕЛЬНО:**
-
-1. Прочитать `docs/roadmaps/ROADMAP_TASKS_{feature}.md`
-2. Найти секцию **Dependencies** для задачи
-3. Проверить что все зависимые задачи:
-   - Реализованы (есть IMPLEMENTATION_REPORT)
-   - Прошли верификацию (score ≥ 9)
-   - Есть коммиты в ветке фичи
-
-**Если зависимости не выполнены:**
-- НЕ запускать разработку этой задачи
-- Перейти к следующей задаче без зависимостей
-- Вернуться к зависимой задаче позже
-
-**Завершение Фазы 6 (после ВСЕХ фич):**
-
-Все фичи разработаны, смержены в {MAIN_BRANCH}. Фаза 6 завершена.
-
-**Правила:**
-- Фичи выполняются ПОСЛЕДОВАТЕЛЬНО (одна за другой)
-- Каждая фича = отдельная ветка `feature/<name>`
-- Задачи внутри фичи выполняются параллельно (до 3 штук)
-- После завершения ВСЕХ задач фичи → merge в {MAIN_BRANCH}
-- Только после завершения ВСЕХ фич переходи к Фазе 7
+- ✅ Разрабатывать до 3 задач **параллельно** (при отсутствии зависимостей)
+- ✅ Каждая задача проходит **полный цикл** (dev → test-reviewer → verify)
+- ✅ Агенты фаз 1-5, 7-9 делают коммиты **сами**
+- ✅ Оркестратор делает коммиты и merge в **Фазе 6**
 
 ---
 
@@ -1796,16 +877,4 @@ Task(feature-verifier, "...T-003...")  → score ≥ 9 → КОММИТ
 
 Выход: `docs/project/DEPLOY.md`, `docs/project/RELEASE_NOTES.md`
 
-**🎉 Пайплайн завершён! Продукт создан и задокументирован.**
-
----
-
-### Фаза 9 — Релиз
-
-Выполни через Task tool: `release-devops`
-
-**Агент сам сделает финальный коммит** после создания артефактов.
-
-Выход: `docs/project/DEPLOY.md`, `docs/project/RELEASE_NOTES.md`
-
-**🎉 Пайплайн завершён! Продукт создан и задокументирован.**
+**Пайплайн завершён! Продукт создан и задокументирован.**
