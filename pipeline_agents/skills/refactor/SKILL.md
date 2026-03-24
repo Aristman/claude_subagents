@@ -6,7 +6,7 @@ description: Запускает пайплайн рефакторинга сущ
 # REFACTORING — Рефакторинг существующего кода
 
 ## Версия
-- version: 2.0.0
+- version: 2.1.0
 - standalone: true
 - purpose: refactoring
 
@@ -30,6 +30,7 @@ description: Запускает пайплайн рефакторинга сущ
 
 - **Область рефакторинга** — какой модуль/файл/функцию нужно отрефакторить
 - **Цель рефакторинга** (опционально) — улучшение читаемости, производительности, архитектуры
+- **Путь для артефактов** — подпапка внутри `docs/refactoring/` для сохранения всех артефактов
 
 **Примеры запросов:**
 
@@ -38,6 +39,8 @@ description: Запускает пайплайн рефакторинга сущ
 "Проанализируй и отрефактори весь модуль data для улучшения читаемости"
 "Упрости условия в методе saveNote() — там слишком много вложенных if"
 ```
+
+**Примеры путей для артефактов:** `features/panel_refactoring`, `features/notes_cleanup`, `modules/data_layer`
 
 ### Вы сами находите:
 - Существующий код
@@ -148,7 +151,11 @@ Task(subagent_type="general-purpose", prompt=@refactor-strategy-builder.md, inpu
 
 **Запуск:**
 ```
-Task(subagent_type="developer-agent", prompt=@refactor-executor.md, input={"REFACTORING_STRATEGY.md", "STEP_NUMBER=N"})
+Orchestrator извлекает текст Step N из REFACTORING_STRATEGY.md и передаёт напрямую:
+Task(subagent_type="general-purpose", prompt=@refactor-executor.md,
+     context="""ШАГ РЕФАКТОРИНГА:
+     {текст Step N из стратегии}
+     STEP_NUMBER: N""")
 ```
 
 **Выход:** `STEP_REPORT_N.md` + изменённый код
@@ -198,26 +205,44 @@ Task(subagent_type="system-verifier", prompt=@refactor-project-verifier.md, inpu
 ## Процесс оркестрации
 
 ### Phase 0: Инициализация
-1. Получи запрос пользователя
-2. Создай файл `REFACTORING_REQUEST.md`
-3. Создай папку `refactoring-artifacts/` для всех артефактов
+1. Получи запрос пользователя (область рефакторинга + цель)
+2. **Запроси путь для артефактов** через `AskUserQuestion` — подпапка внутри `docs/refactoring/`
+   - Пример: `features/panel_refactoring`
+   - Полный путь артефактов: `docs/refactoring/<путь>/`
+3. Создай файл `REFACTORING_REQUEST.md` в папке артефактов
+4. Создай структуру папок `docs/refactoring/<путь>/` для всех артефактов
 
 ### Phase 1: Анализ и планирование
 1. Запусти Code Analyzer → получи `CODE_ANALYSIS.md`
 2. Запусти Strategy Builder → получи `REFACTORING_STRATEGY.md`
 3. Определи количество шагов (N) из `REFACTORING_STRATEGY.md`
+4. **Построить батчи** из шагов (см. раздел «Параллельное выполнение шагов»)
 
-### Phase 2: Выполнение (цикл для каждого шага)
+### Phase 2: Выполнение по батчам
 
-Для каждого шага i от 1 до N:
+Для каждого батча:
 
-**ITERATION LOOP** (max 3 попыток на шаг):
-1. Запусти Executor(STEP_NUMBER=i) → получи `STEP_REPORT_i.md`
-2. Запусти Verifier(STEP_REPORT_i.md) → получи `VERIFICATION_REPORT_i.md`
-3. Проанализируй `VERIFICATION_REPORT_i.md`:
-   - **Если PASS:** git commit + переходи к шагу i+1
+**Один шаг в батче** — последовательное выполнение:
+1. Извлеки текст Step N из REFACTORING_STRATEGY.md
+2. Запусти Executor с извлечённым шагом → получи `STEP_REPORT_N.md`
+3. Запусти Verifier(STEP_REPORT_N.md) → получи `VERIFICATION_REPORT_N.md`
+4. Проанализируй `VERIFICATION_REPORT_N.md`:
+   - **Если PASS:** git commit + переходи к следующему батчу
    - **Если FAIL и попытка < 3:** передай инструкции, перезапусти Executor
    - **Если FAIL и попытка = 3:** запроси человека через AskUserQuestion
+
+**Несколько шагов в батче** — параллельное выполнение:
+1. Извлеки текст каждого шага из REFACTORING_STRATEGY.md
+2. Запусти Executor для каждого шага в **отдельных worktree** (`isolation="worktree"`)
+3. Дождись завершения всех Executor'ов
+4. Запусти Verifier для каждого выполненного шага
+4. **Если все PASS:**
+   - Объедини worktree'и в основную ветку (`git merge`)
+   - git commit для всего батча
+5. **Если любой FAIL:**
+   - Откатить весь батч (все worktree'и)
+   - Передать инструкции, перезапустить Executor для проваленного шага
+   - Если попытка = 3 → запроси человека через AskUserQuestion
 
 ### Phase 3: Финальная проверка
 1. Запусти Project Verifier → получи `FINAL_VERIFICATION.md`
@@ -243,7 +268,9 @@ git commit -m "refactor: <step description>"
 
 ## Артефакты рефакторинга
 
-Все артефакты создаются в папке `refactoring-artifacts/`:
+Базовая директория для всех артефактов: `docs/refactoring/<путь>/`, где `<путь>` — запрошенный у пользователя путь для артефактов.
+
+**Пример:** при пути `features/panel_refactoring` все артефакты сохраняются в `docs/refactoring/features/panel_refactoring/`.
 
 | Артефакт                   | Фаза | Создаётся кем    |
 |----------------------------|------|------------------|
@@ -257,6 +284,79 @@ git commit -m "refactor: <step description>"
 
 ---
 
+## Параллельное выполнение шагов
+
+### Принцип
+
+Шаги рефакторинга могут выполняться **параллельно** если они не затрагивают одни и те же файлы/классы.
+
+**КРИТИЧЕСКОЕ ПРАВИЛО:** Параллельное выполнение **запрещено** для шагов с пересечением по файлам.
+
+### Построение батчей
+
+После получения `REFACTORING_STRATEGY.md` Orchestrator строит файловую матрицу пересечений:
+
+```
+1. Для каждого шага извлечь Target Files (обязательное поле из стратегии)
+2. Построить граф пересечений:
+   - Ребро A↔B если target_files(A) ∩ target_files(B) ≠ ∅
+   - Ребро A→B если step B.deps содержит step A
+3. Сгруппировать непересекающиеся шаги в батчи
+```
+
+### Пример
+
+```
+Step 1: [NotesViewModel.kt, Note.kt]         — Extract validation
+Step 2: [NoteValidator.kt] (create)          — Create validator class
+Step 3: [NoteRepository.kt]                  — Clean up repository
+Step 4: [NotesViewModel.kt]                  — Rename methods
+Step 5: [NoteDao.kt, NoteEntity.kt]          — Extract DAO
+
+Пересечения:
+- Step 1 ∩ Step 4 → NotesViewModel.kt → НЕ параллельны
+- Step 2 depends on Step 1 → НЕ параллельны
+
+Батчи:
+  Batch 1: [Step 1, Step 3, Step 5] — параллельно (разные файлы)
+  Batch 2: [Step 4] — после Step 1 (общий NotesViewModel.kt)
+  Batch 3: [Step 2] — после Step 4 (явная зависимость)
+```
+
+### Изоляция worktree
+
+При параллельном выполнении каждый Executor работает в **отдельной worktree**:
+
+```
+Task(isolation="worktree", subagent_type="developer-agent", prompt=...)
+```
+
+Это гарантирует что параллельные шаги не конфликтуют на уровне файловой системы.
+
+### Правила
+
+**ЗАПРЕЩЕНО:**
+- Параллельное изменение одного файла разными шагами
+- Параллельное выполнение при явной логической зависимости между шагами
+- Запуск Executor'ов для разных шагов без worktree изоляции
+
+**РАЗРЕШЕНО:**
+- Параллельное изменение разных файлов
+- Параллельное создание новых файлов (если нет пересечений)
+- Параллельная работа в изолированных worktree
+
+### Обработка конфликтов
+
+Если при `git merge` worktree'ей батча обнаружен конфликт:
+
+1. Откатить весь батч (все worktree'и)
+2. Перестроить батчи, объединив конфликтующие шаги в один
+3. Повторить выполнение
+
+Если конфликты из-за ошибки в Target Files стратегии — запросить корректировку.
+
+---
+
 ## Quality Gates
 
 ### Для каждого агента:
@@ -267,14 +367,14 @@ git commit -m "refactor: <step description>"
 | **Strategy Builder** | План реалистичен, шаги независимы          |
 | **Executor**         | Все изменения из стратегии применены       |
 | **Verifier**         | Тесты проходят, поведение сохранено        |
-| **Project Verifier** | Final score ≥ 8.0/10                       |
+| **Project Verifier** | Checklist полностью пройден               |
 
 ### Финальный критерий:
 
 Рефакторинг принимается если:
 - ✅ Все тесты проходят
 - ✅ Поведение сохранено
-- ✅ Final score ≥ 8.0/10
+- ✅ Все пункты checklist'а Project Verifier выполнены
 - ✅ Все критические code smells устранены
 - ✅ ≥ 80% high priority issues устранены
 
@@ -302,18 +402,30 @@ git commit -m "refactor: <step description>"
    - Область рефакторинга
    - Цель (опционально)
 
-2. **Создайте REFACTORING_REQUEST.md**
+2. **Запросите путь для артефактов** через `AskUserQuestion`:
+   - Подпапка внутри `docs/refactoring/`
+   - Пример: `features/panel_refactoring`
+   - Итоговый путь: `docs/refactoring/features/panel_refactoring/`
 
-3. **Запустите агентов в последовательности:**
+3. **Создайте REFACTORING_REQUEST.md** в папке артефактов
+
+4. **Запустите агенты в последовательности:**
    - Code Analyzer
    - Strategy Builder
+
+5. **Построите батчи** из шагов стратегии по файловым пересечениям
+
+6. **Выполняйте батчи:**
+   - Параллельно для шагов с разными файлами (worktree изоляция)
+   - Последовательно для шагов с общими файлами
    - Executor (для каждого шага)
    - Verifier (после каждого шага)
-   - Project Verifier (в конце)
 
-4. **Делайте git коммиты после каждого успешного шага**
+7. **Project Verifier** (в конце)
 
-5. **Создайте REFACTORING_SUMMARY.md по завершении**
+8. **Делайте git коммиты после каждого успешного батча**
+
+9. **Создайте REFACTORING_SUMMARY.md по завершении**
 
 ---
 
@@ -326,4 +438,4 @@ git commit -m "refactor: <step description>"
 | **Агенты**              | 9+ агентов       | 5+ агентов          | **5 специализированных**              |
 | **Итерации**            | По стадиям       | По стадиям          | **До 3 итераций на шаг**              |
 | **Git коммиты**         | Каждый агент     | Каждый агент        | **Orchestrator после каждого шага**   |
-| **Критерий успеха**     | Requirements met | Tests pass          | **Поведение неизменно + score ≥ 8.0** |
+| **Критерий успеха**     | Requirements met | Tests pass          | **Поведение неизменно + checklist pass** |

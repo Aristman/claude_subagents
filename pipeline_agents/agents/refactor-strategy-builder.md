@@ -110,6 +110,11 @@ You do NOT execute refactoring.
 **Code Smell Addressed:**
 - Reference to CODE_ANALYSIS.md
 
+**Target Files (ОБЯЗАТЕЛЬНО):**
+- `path/to/File.kt` (modify)
+- `path/to/NewFile.kt` (create)
+- Типы операций: (modify), (create), (delete), (rename)
+
 **Refactoring Pattern:**
 - [Martin Fowler pattern name]
   - Extract Method / Inline Method
@@ -143,9 +148,10 @@ You do NOT execute refactoring.
 - Specific test files/functions to run
 - What behavior should remain the same
 
-**Dependencies:**
-- None (if independent)
-- Previous step X (if depends on earlier step)
+**Dependencies (ОБЯЗАТЕЛЬНО):**
+- **File conflicts with steps:** [list step numbers that touch same files]
+- **Logical dependency on steps:** [list step numbers that must complete first]
+- **Can run in parallel with steps:** [list step numbers — safe to parallelize]
 
 **Estimated Risk:**
 - Low / Medium / High
@@ -215,69 +221,9 @@ If test coverage is insufficient:
 
 ---
 
-## Refactoring Pattern Catalog (Reference)
+## Refactoring Patterns (Reference)
 
-### Composing Methods
-- **Extract Method**: Turn fragment into method
-- **Inline Method**: Replace method with its body
-- **Extract Variable**: Simplify expression with variable
-- **Inline Variable**: Replace variable with expression
-
-### Moving Features Between Objects
-- **Move Method**: Method uses another class more than its own
-- **Move Field**: Field used by another class
-- **Extract Class**: New class for part of responsibilities
-- **Inline Class**: Merge class into another
-- **Hide Delegate**: Hide internal delegation
-- **Remove Middle Man**: Talk directly to the delegate
-- **Introduce Foreign Method**: Add method to served class
-- **Introduce Local Extension**: Create extension for served class
-
-### Organizing Data
-- **Self Encapsulate Field**: Access via getters/setters
-- **Replace Data Value with Object**: Replace data with object
-- **Change Value to Reference**: Replace value object with reference
-- **Change Reference to Value**: Replace reference with value object
-- **Replace Array with Object**: Replace array with object
-- **Duplicate Observed Data**: Copy data to local field
-- **Change Unidirectional Association to Bidirectional**
-- **Change Bidirectional Association to Unidirectional**
-- **Replace Magic Number with Constant**
-- **Replace Type Code with Class**
-- **Replace Type Code with Subclasses**
-- **Replace Type Code with State/Strategy**
-- **Replace Subclass with Fields**
-
-### Simplifying Conditional Expressions
-- **Decompose Conditional**: Extract conditionals to methods
-- **Consolidate Conditional Expression**: Combine conditionals
-- **Consolidate Duplicate Conditional Fragments**
-- **Replace Nested Conditional with Guard Clauses**
-- **Replace Conditional with Polymorphism**
-- **Introduce Null Object**
-- **Introduce Assertion**
-
-### Simplifying Method Calls
-- **Rename Method**: Better name
-- **Add Parameter**: Add data to method
-- **Remove Parameter**: Remove unused parameter
-- **Introduce Parameter Object**: Group parameters
-- **Remove Setting Method**: Make field readonly
-- **Hide Method**: Reduce visibility
-- **Replace Constructor with Factory Method**
-- **Replace Error Code with Exception**
-- **Replace Exception with Test**
-
-### Dealing with Generalization
-- **Pull Up Field/Method**: Move to superclass
-- **Push Down Field/Method**: Move to subclass
-- **Extract Subclass**: New subclass for features
-- **Extract Superclass**: Common superclass
-- **Extract Interface**: Interface for common behavior
-- **Collapse Hierarchy**: Merge superclass/subclass
-- **Form Template Method**: Steps in algorithm
-- **Replace Inheritance with Delegation**
-- **Replace Delegation with Inheritance**
+Use Martin Fowler's refactoring catalog: Extract Method/Variable/Class/Interface/Subclass/Superclass, Inline Method/Variable/Class, Move Method/Field, Rename, Decompose Conditional, Consolidate Conditional, Replace Conditional with Polymorphism / Guard Clauses, Introduce Parameter Object / Null Object, Pull Up / Push Down Field/Method, Replace Inheritance with Delegation, Replace Magic Number with Constant, Replace Type Code with Class/Enum/Subclasses/State.
 
 ---
 
@@ -345,21 +291,6 @@ If test coverage is insufficient:
 * Compile REFACTORING_STRATEGY.md
 * Ensure all sections are complete
 * Verify step order is logical
-
----
-
-### Phase 8 — Self-Validation
-
-Before output, verify:
-
-* Every issue from CODE_ANALYSIS.md is addressed
-* Each step has a clear refactoring pattern
-* Each step has verification tests
-* No step changes external behavior
-* Dependencies are documented
-* Rollback strategies exist
-
-If validation fails, regenerate the strategy.
 
 ---
 

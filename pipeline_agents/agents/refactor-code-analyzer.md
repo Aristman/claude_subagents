@@ -103,24 +103,16 @@ For each code smell:
 
 ## 3. Quality Metrics
 
-### Complexity Metrics
-- Cyclomatic complexity (by function/file)
-- Nesting depth
-- Function length
-
-### Coupling Metrics
-- Afferent coupling (Ca)
-- Efferent coupling (Ce)
-- Instability (I = Ce / (Ca + Ce))
-
-### Cohesion Metrics
-- Lack of cohesion of methods (LCOM)
-- Class responsibility clustering
-
-### Size Metrics
+### Objective Metrics
 - Lines of code (LOC)
 - Number of classes/functions
+- Max method length
+- Max nesting depth
 - Parameter counts
+
+### Tool-based Metrics (if available)
+- If project has static analysis tools (detekt, checkstyle, eslint, radon, etc.) — use their output
+- Report actual tool results, do not estimate manually
 
 ## 4. Code Structure Overview
 
@@ -159,78 +151,9 @@ For each code smell:
 
 ---
 
-## Code Smell Catalog (Reference)
+## Code Smells (Reference)
 
-You MUST check for ALL of these:
-
-### 1. Duplicated Code
-- Same/similar code in multiple places
-- Copy-paste patterns
-
-### 2. Long Method
-- Methods > 20-30 lines
-- Methods doing multiple things
-
-### 3. Large Class
-- Classes > 300 lines
-- Classes with too many responsibilities
-
-### 4. Long Parameter List
-- Functions with > 3-4 parameters
-- Consider parameter objects
-
-### 5. Feature Envy
-- Method that uses more of another class than its own
-
-### 6. Data Clumps
-- Groups of parameters always together
-- Should be objects
-
-### 7. Primitive Obsession
-- Use of primitives instead of small classes
-- Magic numbers/strings
-
-### 8. Switch Statements / Conditional Complexity
-- Complex conditionals
-- Repeated switches
-
-### 9. Temporary Field
-- Fields only used in some scenarios
-
-### 10. Lazy Class
-- Classes that do too little
-
-### 11. Speculative Generality
-- Unused abstractions
-- Over-engineering
-
-### 12. Mystery Guest
-- Unexplained dependencies in tests
-- Hard-coded test data
-
-### 13. Divergent Change
-- Class changed for different reasons
-
-### 14. Shotgun Surgery
-- One change requires many files to change
-
-### 15. Inappropriate Intimacy
-- Classes too dependent on each other's internals
-
-### 16. Message Chains
-- a.getB().getC().doSomething()
-
-### 17. Middle Man
-- Class that just delegates to another
-
-### 18. Incomplete Library Class
-- Library class that needs extension
-
-### 19. Alternative Classes with Different Interfaces
-- Classes doing same thing differently
-
-### 20. Refused Bequest
-- Subclass rejects parent methods
+Check for ALL standard code smells: Duplicated Code, Long Method, Large Class, Long Parameter List, Feature Envy, Data Clumps, Primitive Obsession, Switch Statements, Temporary Field, Lazy Class, Speculative Generality, Mystery Guest, Divergent Change, Shotgun Surgery, Inappropriate Intimacy, Message Chains, Middle Man, Incomplete Library Class, Alternative Classes with Different Interfaces, Refused Bequest.
 
 ---
 
@@ -284,20 +207,6 @@ You MUST check for ALL of these:
 * Compile findings into CODE_ANALYSIS.md
 * Prioritize by severity
 * Ensure all findings are evidence-based
-
----
-
-### Phase 7 — Self-Validation
-
-Before output, verify:
-
-* All target files were analyzed
-* Each code smell has a location
-* Severity is justified
-* No solutions are proposed
-* Metrics are calculated correctly
-
-If validation fails, regenerate the analysis.
 
 ---
 

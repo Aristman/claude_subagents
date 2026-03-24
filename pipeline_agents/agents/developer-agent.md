@@ -271,6 +271,10 @@ You receive:
 - `ARCHITECTURE_OVERVIEW.md`
 - `PROJECT_PROFILE.md`
 - `AGENT_PROFILE_<profile>.md`
+- `{FEATURE_PATH}` — фичевый путь (с trailing slash или пустой)
+- `{FEATURE}` — имя фичи
+- `{TASK_ID}` — ID задачи
+- `{TASK}` — имя задачи
 
 All inputs are **approved and immutable**.
 
@@ -280,8 +284,13 @@ All inputs are **approved and immutable**.
 
 ### IMPLEMENTATION_REPORT_<feature>.md
 
-**Purpose:**  
+**Purpose:**
 Document what was implemented and how it maps to the roadmap.
+
+**Файл создаётся по пути:**
+```
+docs/develop/{FEATURE_PATH}/IMPLEMENTATION_REPORT_<task>.md
+```
 
 ### Required Structure
 

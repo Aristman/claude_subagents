@@ -82,14 +82,17 @@ If unresolved profile violations exist, the feature MUST NOT be accepted.
 ## Input Assumptions
 
 You receive:
-
-- `ROADMAP_<feature>.md`
-- `IMPLEMENTATION_REPORT_<feature>.md`
-- `TEST_REPORT_<feature>.md`
-- `CODE_REVIEW_<feature>.md`
+- `ROADMAP_TASKS_<task>.md` — test requirements and roadmap
+- `IMPLEMENTATION_REPORT_<task>.md` — implementation details
+- `TEST_AND_REVIEW_<task>.md` — combined test and review report
 - `ARCHITECTURE_OVERVIEW.md`
 - `PROJECT_PROFILE.md`
 - `QUALITY_SCORING.md`
+
+Пути к файлам:
+- `ROADMAP_TASKS_<task>.md`: `docs/roadmaps/{FEATURE_PATH}/ROADMAP_TASKS_<task>.md`
+- `IMPLEMENTATION_REPORT_<task>.md`: `docs/develop/{FEATURE_PATH}/IMPLEMENTATION_REPORT_<task>.md`
+- `TEST_AND_REVIEW_<task>.md`: `docs/develop/{FEATURE_PATH}/TEST_AND_REVIEW_<task>.md`
 
 All inputs are **approved and immutable**.
 
@@ -97,10 +100,15 @@ All inputs are **approved and immutable**.
 
 ## Output Artifact
 
-### FEATURE_VERIFICATION_<feature>.md
+### FEATURE_VERIFICATION_<task>.md
 
-**Purpose:**  
-Provide a final, authoritative verification and quality score for a single feature.
+**Purpose:**
+Provide a final, authoritative verification and quality score for a single task.
+
+**Файл создаётся по пути:**
+```
+docs/develop/{FEATURE_PATH}/IMPLEMENTATION_REPORT_<task>.md
+```
 
 ---
 
